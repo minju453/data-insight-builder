@@ -201,9 +201,10 @@ async function runInspect() {
     // 진단 결과 UI 렌더링
     renderInspectResults(diag);
 
-    // 2단계(제안) 섹션 열기
+    // [신규] 자연어 질문 섹션 및 2단계(제안) 섹션 열기
+    document.getElementById("nlQuerySection").classList.remove("hidden");
     document.getElementById("step2Section").classList.remove("hidden");
-    document.getElementById("step2Section").scrollIntoView({ behavior: "smooth" });
+    document.getElementById("nlQuerySection").scrollIntoView({ behavior: "smooth" });
 
   } catch (err) {
     showError(err.message);
@@ -692,6 +693,113 @@ function setupFollowUpHandler() {
 }
 
 // ============================================================
+// 자연어 데이터 질문 핸들러 (/query)
+// ============================================================
+function setupNaturalLanguageQueryHandler() {
+  const queryInput = document.getElementById("nlQueryInput");
+  const queryBtn = document.getElementById("nlQueryBtn");
+  const answerArea = document.getElementById("nlAnswerArea");
+  const answerText = document.getElementById("nlAnswerText");
+  const visualizeBtn = document.getElementById("nlVisualizeBtn");
+
+  let queryRunResult = null;
+  let queryToolName = null;
+  let queryParams = null;
+
+  async function handleQuery(customText = null) {
+    const text = (customText || queryInput.value).trim();
+    if (!text) {
+      alert("데이터에 질문할 내용을 입력해 주세요.");
+      return;
+    }
+
+    if (customText) {
+      queryInput.value = customText;
+    }
+
+    clearError();
+    queryBtn.disabled = true;
+    queryBtn.textContent = "AI 통계 분석 중...";
+
+    console.log(`[EXPLAIN] 자연어 데이터 질문 시작: '${text}'`);
+
+    try {
+      const res = await fetch("/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: text })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "자연어 질문 분석 중 오류가 발생했습니다.");
+      }
+
+      console.log(`[EXPLAIN] 자연어 데이터 답변 수신 완료 (도구: ${data.tool})`);
+
+      // 답변 렌더링
+      answerText.innerHTML = renderMarkdown(data.answer);
+      answerArea.classList.remove("hidden");
+      answerArea.scrollIntoView({ behavior: "smooth" });
+
+      // 차후 시각화에 사용할 계산 결과 저장
+      queryRunResult = data.run_result;
+      queryToolName = data.tool;
+      queryParams = data.params;
+      AppState.lastRunResult = data.run_result;
+      AppState.selectedTool = data.tool;
+
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      queryBtn.disabled = false;
+      queryBtn.textContent = "데이터 질문하기 🚀";
+    }
+  }
+
+  queryBtn.addEventListener("click", () => handleQuery());
+  queryInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      handleQuery();
+    }
+  });
+
+  // 예시 질문 칩 클릭 연동
+  document.querySelectorAll(".nl-sample-chip").forEach(chip => {
+    chip.addEventListener("click", (e) => {
+      const q = e.target.dataset.q;
+      if (q) {
+        handleQuery(q);
+      }
+    });
+  });
+
+  // [시각화 버튼 클릭 시] -> 4단계 차트 렌더링 및 5단계 보고서 단계로 직행
+  visualizeBtn.addEventListener("click", () => {
+    if (!queryRunResult) return;
+
+    // 3단계 폼 값 동기화
+    document.getElementById("activeToolName").value = queryToolName || "";
+    if (queryParams && queryParams.reference_period) {
+      document.getElementById("referencePeriodInput").value = queryParams.reference_period;
+    }
+    if (queryParams && queryParams.n) {
+      document.getElementById("nParamInput").value = queryParams.n;
+    }
+
+    // 4단계 차트 렌더링
+    renderRunResult(queryRunResult);
+
+    // 4단계, 5단계 섹션 표시 및 부드러운 스크롤 이동
+    document.getElementById("step3Section").classList.remove("hidden");
+    document.getElementById("step4Section").classList.remove("hidden");
+    document.getElementById("step5Section").classList.remove("hidden");
+
+    document.getElementById("step4Section").scrollIntoView({ behavior: "smooth" });
+  });
+}
+
+// ============================================================
 // 오류 복사 핸들러 (오류 발생 시 AI에게 전달)
 // ============================================================
 function setupErrorCopyHandler() {
@@ -714,6 +822,7 @@ function setupErrorCopyHandler() {
 document.addEventListener("DOMContentLoaded", () => {
   initServerStatus();
   setupUploadHandlers();
+  setupNaturalLanguageQueryHandler();
   setupSuggestHandler();
   setupRunHandler();
   setupExplainHandler();

@@ -65,6 +65,38 @@
       </div>
     </section>
 
+    <!-- [신규] 자연어 데이터 질문 & 원클릭 시각화 섹션 -->
+    <section class="card step-section nl-query-card hidden" id="nlQuerySection">
+      <div class="step-header">
+        <span class="step-number" style="background-color: var(--secondary);">AI</span>
+        <h2>자연어로 데이터에 직접 질문하기 💬</h2>
+      </div>
+      <p class="step-desc">궁금한 점을 자연어로 질문하면, Pandas가 정확한 숫자를 계산하고 AI가 답변한 뒤 원클릭 차트 시각화 버튼을 띄워줍니다.</p>
+
+      <div class="nl-input-container">
+        <input type="text" id="nlQueryInput" placeholder="예: 2024년 1-10등까지 순위국가와 대한민국을 함께 비교해줘" />
+        <button id="nlQueryBtn" class="btn btn-primary">데이터 질문하기 🚀</button>
+      </div>
+
+      <div class="quick-question-chips" style="margin-top: 10px;">
+        <span class="chip-label">예시 질문:</span>
+        <button type="button" class="chip-btn nl-sample-chip" data-q="2024년 1-10등까지 순위국가와 대한민국을 함께 비교해줘">🥇 2024년 1~10위 국가와 한국 비교</button>
+        <button type="button" class="chip-btn nl-sample-chip" data-q="10년 전과 비교해서 인터넷 보급률이 가장 많이 급증한 나라는 어디야?">🚀 10년간 가장 많이 성장한 나라</button>
+        <button type="button" class="chip-btn nl-sample-chip" data-q="2024년 전 세계 인터넷 보급률의 평균과 중앙값, 최소 최대값을 알려줘">📊 2024년 평균과 중앙값 통계</button>
+      </div>
+
+      <!-- 자연어 답변 및 시각화 버튼 영역 -->
+      <div id="nlAnswerArea" class="nl-answer-area hidden">
+        <div class="nl-answer-header">
+          <strong>🤖 데이터 기반 AI 답변:</strong>
+        </div>
+        <div id="nlAnswerText" class="nl-answer-text"></div>
+        <div class="nl-visualize-action">
+          <button id="nlVisualizeBtn" class="btn btn-success">📊 이 분석 바로 시각화하기 (차트 및 상세 보고서 보기) 👉</button>
+        </div>
+      </div>
+    </section>
+
     <!-- 2단계: Gemini 도구 추천 -->
     <section class="card step-section hidden" id="step2Section">
       <div class="step-header">

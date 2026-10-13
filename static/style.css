@@ -717,6 +717,69 @@ tr:hover td {
 }
 
 /* ------------------------------------------------------------
+   [신규] 자연어 데이터 질문 카드
+   ------------------------------------------------------------ */
+.nl-query-card {
+  border: 2px solid #e0e7ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+}
+
+.nl-input-container {
+  display: flex;
+  gap: 10px;
+}
+
+.nl-input-container input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+}
+
+.nl-input-container input:focus {
+  outline: none;
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.nl-answer-area {
+  margin-top: 20px;
+  background-color: #ffffff;
+  border: 1px solid #c7d2fe;
+  border-left: 5px solid var(--secondary);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  animation: fadeIn 0.3s ease;
+}
+
+.nl-answer-header {
+  font-size: 1rem;
+  color: var(--secondary);
+  margin-bottom: 10px;
+}
+
+.nl-answer-text {
+  font-size: 0.95rem;
+  line-height: 1.8;
+  color: var(--text-main);
+}
+
+.nl-visualize-action {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.nl-visualize-action .btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 1.05rem;
+  box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+}
+
+/* ------------------------------------------------------------
    후속 질문 (Q&A) 영역
    ------------------------------------------------------------ */
 .follow-up-card {

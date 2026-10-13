@@ -996,6 +996,157 @@ def easy_explain():
     }), 200
 
 
+@app.route("/query", methods=["POST"])
+def natural_language_query():
+    """
+    POST /query
+    - 자연어로 질문하면 도구 카탈로그에서 최적 도구와 파라미터를 판별
+    - [절대 규칙] 계산은 오직 Pandas가 먼저 수행
+    - Pandas가 계산한 실제 숫자 결과에만 근거하여 Gemini가 자연어 답변 작성
+    - 시각화 차트 데이터(run_result)를 함께 반환하여 원클릭 시각화 연동
+    """
+    global current_dataset
+    if current_dataset is None or "diagnosis" not in current_dataset:
+        return jsonify({"error": "먼저 CSV 파일을 업로드하고 진단(/inspect)을 완료해 주세요."}), 400
+
+    req_data = request.get_json(silent=True) or {}
+    user_query = req_data.get("query", "").strip()
+
+    if not user_query:
+        return jsonify({"error": "질문 내용을 입력해 주세요."}), 400
+
+    load_dotenv(override=True)
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
+
+    if not api_key or api_key == "your_gemini_api_key_here":
+        return jsonify({"error": "Gemini API Key가 설정되지 않았습니다. .env 파일을 확인해 주세요."}), 400
+
+    diagnosis = current_dataset["diagnosis"]
+    df = current_dataset["df"]
+    rec_year = diagnosis.get("recommended_reference_year") or "2024"
+    year_cols = diagnosis.get("date_or_year_columns", [])
+
+    logger.info(f"[AI] 자연어 질문 분석 시작: '{user_query}'")
+
+    # 1. Gemini를 통해 자연어 질문에 알맞은 도구와 파라미터 매핑 (JSON 강제)
+    mapping_prompt = f"""당신은 데이터 쿼리 매퍼입니다.
+사용자의 자연어 질문을 읽고, 제공된 도구 카탈로그 중에서 가장 알맞은 도구 1개와 실행 파라미터를 JSON으로 선택하세요.
+
+[도구 카탈로그]
+{json.dumps(TOOL_CATALOG, ensure_ascii=False, indent=2)}
+
+[데이터 컨텍스트]
+- 권장 기준연도: {rec_year}
+- 연도 열 범위: {year_cols[0] if year_cols else '없음'} ~ {year_cols[-1] if year_cols else '없음'}
+- 레이블 열: {diagnosis.get('target_label_column')}
+
+[사용자 질문]
+"{user_query}"
+
+[출력 JSON 규격 (오직 JSON만 출력할 것)]
+{{
+  "tool": "카탈로그에_있는_도구명",
+  "params": {{
+    "reference_period": "{rec_year}",
+    "n": 10,
+    "target_item": "Korea, Rep.",
+    "exclude_aggregates": true
+  }},
+  "intent": "질문의 분석 의도 요약"
+}}
+"""
+
+    client = genai.Client(api_key=api_key)
+    try:
+        mapping_res = client.models.generate_content(
+            model=model_name,
+            contents=mapping_prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+        )
+        mapping_data = json.loads(mapping_res.text.strip())
+        tool_name = mapping_data.get("tool", "top_bottom_n")
+        params = mapping_data.get("params", {})
+    except Exception as e:
+        logger.warning(f"[AI] 도구 매핑 파싱 실패, 기본 도구 적용: {str(e)}")
+        tool_name = "top_bottom_n"
+        params = {"reference_period": rec_year, "n": 10, "exclude_aggregates": True}
+
+    if tool_name not in TOOL_MAP:
+        tool_name = "top_bottom_n"
+
+    # 기준시점 보장
+    if "reference_period" not in params or not params["reference_period"]:
+        params["reference_period"] = rec_year
+
+    # 2. [절대 규칙] 순수 Pandas로 실제 수치 계산 수행
+    fn = TOOL_MAP[tool_name]
+    import inspect as py_inspect
+    sig = py_inspect.signature(fn)
+    valid_param_keys = set(sig.parameters.keys()) - {"df"}
+    filtered_params = {k: v for k, v in params.items() if k in valid_param_keys}
+
+    try:
+        run_result = fn(df, **filtered_params)
+    except Exception as e:
+        logger.error(f"[ERROR] Pandas 계산 실패: {str(e)}")
+        return jsonify({"error": f"계산 실행 중 오류가 발생했습니다: {str(e)}"}), 500
+
+    # 만약 '대한민국' 또는 '한국' 비교 질문인데 top_bottom_n인 경우, 한국 수치도 조회하여 보강
+    extra_korea_info = None
+    if any(k in user_query for k in ["대한민국", "한국", "korea"]):
+        try:
+            korea_comp = tools.compare_one_vs_all(df, reference_period=params.get("reference_period", rec_year), target_item="Korea, Rep.")
+            if "result" in korea_comp:
+                extra_korea_info = korea_comp["result"]
+        except Exception:
+            pass
+
+    # 3. 계산된 실제 수치를 바탕으로 Gemini가 친절한 자연어 답변 작성 (절대 직접 계산 금지)
+    answer_prompt = f"""당신은 데이터 분석 교육 멘토입니다.
+사용자가 질문한 내용에 대해, 아래 Python Pandas가 직접 계산한 신뢰할 수 있는 수치 결과를 바탕으로 명쾌하고 친절하게 답변하세요.
+
+[절대 규칙]
+1. 제공된 실제 계산 숫자만 사용하여 답변하세요. 절대 임의로 숫자를 지어내거나 추정하지 마세요.
+2. 질문자의 의도에 맞춰 핵심 순위와 수치를 일목요연하게 정리해 주세요.
+3. 기준시점({run_result.get('reference_period')})과 사용된 국가 수({run_result.get('used_rows_count')}개국)를 명확히 밝히세요.
+
+[사용자 질문]
+"{user_query}"
+
+[Pandas 실제 계산 결과]
+- 실행된 도구: {tool_name}
+- 기준 시점: {run_result.get('reference_period')}
+- 사용한 국가 수: {run_result.get('used_rows_count')}개국, 제외된 행 수: {run_result.get('excluded_rows_count')}개
+- 계산 수치 데이터:
+{json.dumps(run_result.get('result', {}), ensure_ascii=False, indent=2)}
+{f"- 한국 비교 추가 수치: {json.dumps(extra_korea_info, ensure_ascii=False)}" if extra_korea_info else ""}
+"""
+
+    try:
+        answer_res = client.models.generate_content(
+            model=model_name,
+            contents=answer_prompt,
+            config=types.GenerateContentConfig(temperature=0.3)
+        )
+        answer_text = answer_res.text.strip()
+    except Exception as e:
+        logger.error(f"[ERROR] 자연어 답변 생성 실패: {str(e)}")
+        answer_text = "계산이 성공적으로 완료되었습니다. 아래 버튼을 눌러 시각화 그래프를 확인하세요."
+
+    # 마지막 실행 결과 메모리 저장 (시각화 및 A/B 보고서와 바로 연동)
+    current_dataset["last_run_result"] = run_result
+
+    return jsonify({
+        "status": "success",
+        "query": user_query,
+        "tool": tool_name,
+        "params": filtered_params,
+        "answer": answer_text,
+        "run_result": run_result
+    }), 200
+
+
 if __name__ == "__main__":
     logger.info("Starting AI Data Insight Builder server...")
     logger.info(f"Model configured: {GEMINI_MODEL}")
