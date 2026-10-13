@@ -565,6 +565,54 @@ function setupExplainHandler() {
       });
     }
   });
+
+  // 쉬운 비유 설명 버튼 핸들러
+  const easyExplainBtn = document.getElementById("easyExplainBtn");
+  const easySummaryBox = document.getElementById("easySummaryBox");
+  const easySummaryContent = document.getElementById("easySummaryContent");
+  const closeEasyBtn = document.getElementById("closeEasyBtn");
+
+  if (easyExplainBtn) {
+    easyExplainBtn.addEventListener("click", async () => {
+      clearError();
+      easyExplainBtn.disabled = true;
+      easyExplainBtn.textContent = "🐣 쉬운 설명 생성 중...";
+
+      console.log("[EXPLAIN] 쉬운 비유 설명 요청 시작");
+
+      try {
+        const res = await fetch("/easy-explain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            run_result: AppState.lastRunResult
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "쉬운 설명 생성 중 오류가 발생했습니다.");
+        }
+
+        easySummaryContent.innerHTML = renderMarkdown(data.easy_explanation);
+        easySummaryBox.classList.remove("hidden");
+        easySummaryBox.scrollIntoView({ behavior: "smooth" });
+        console.log("[EXPLAIN] 쉬운 비유 설명 렌더링 완료");
+
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        easyExplainBtn.disabled = false;
+        easyExplainBtn.textContent = "🐣 쉬운 비유로 설명해줘";
+      }
+    });
+  }
+
+  if (closeEasyBtn) {
+    closeEasyBtn.addEventListener("click", () => {
+      easySummaryBox.classList.add("hidden");
+    });
+  }
 }
 
 // ============================================================
@@ -576,11 +624,15 @@ function setupFollowUpHandler() {
   const answerArea = document.getElementById("followUpAnswerArea");
   const answerText = document.getElementById("followUpAnswerText");
 
-  async function handleAsk() {
-    const question = questionInput.value.trim();
+  async function handleAsk(customQuestion = null) {
+    const question = (customQuestion || questionInput.value).trim();
     if (!question) {
       alert("질문 내용을 입력해 주세요.");
       return;
+    }
+
+    if (customQuestion) {
+      questionInput.value = customQuestion;
     }
 
     clearError();
@@ -621,11 +673,21 @@ function setupFollowUpHandler() {
     }
   }
 
-  askBtn.addEventListener("click", handleAsk);
+  askBtn.addEventListener("click", () => handleAsk());
   questionInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
       handleAsk();
     }
+  });
+
+  // 추천 빠른 질문 칩 버튼 클릭 연동
+  document.querySelectorAll(".chip-btn").forEach(chip => {
+    chip.addEventListener("click", (e) => {
+      const q = e.target.dataset.q;
+      if (q) {
+        handleAsk(q);
+      }
+    });
   });
 }
 

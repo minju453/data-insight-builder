@@ -929,6 +929,73 @@ def ask_question():
     }), 200
 
 
+@app.route("/easy-explain", methods=["POST"])
+def easy_explain():
+    """
+    POST /easy-explain
+    - 어려운 통계 용어(사분위수, 왜도, 상관계수 등)를 일상적인 비유로 풀어서 초보자 눈높이로 쉽게 설명
+    - Pandas 계산 결과에 근거하되 중학생/초보자도 1분 만에 이해할 수 있는 쉬운 비유 제공
+    """
+    global current_dataset
+    if current_dataset is None or "diagnosis" not in current_dataset:
+        return jsonify({"error": "먼저 데이터 진단을 완료해 주세요."}), 400
+
+    req_data = request.get_json(silent=True) or {}
+    run_result = req_data.get("run_result") or current_dataset.get("last_run_result")
+
+    if not run_result:
+        return jsonify({"error": "먼저 도구를 실행(/run)하여 계산 결과를 생성해 주세요."}), 400
+
+    load_dotenv(override=True)
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
+
+    if not api_key or api_key == "your_gemini_api_key_here":
+        return jsonify({"error": "Gemini API Key가 설정되지 않았습니다. .env 파일을 확인해 주세요."}), 400
+
+    diagnosis = current_dataset["diagnosis"]
+
+    prompt = f"""당신은 초등학생과 중학생에게 세상을 흥미진진하게 설명해 주는 친절한 선생님입니다.
+아래에 실제 통계 분석 결과가 있습니다.
+어려운 통계 전문 용어(사분위수, 표준편차, 피어슨 상관계수, 결측치 등)를 전혀 쓰지 말고,
+누구나 바로 무릎을 칠 수 있는 일상생활의 친숙한 비유(예: 반 친구들의 키, 모의고사 성적표, 게임 레벨, 스마트폰 쓰기 등)를 들어서
+이 숫자들이 뜻하는 진짜 의미를 3~4개의 명쾌하고 재미있는 문단으로 쉽게 설명해 주세요.
+
+[핵심 작성 규칙]
+1. 계산된 핵심 수치(예: 순위, 평균, 1위 수치 등)는 정확히 인용하되 아주 쉽게 풀어주세요.
+2. 친근하고 따뜻한 존댓말로 쓰세요.
+3. "이게 무슨 뜻이냐면요...", "쉽게 비유하자면..." 같은 표현을 적극 활용하세요.
+
+[분석 결과 정보]
+- 파일명: {diagnosis.get('filename')}
+- 실행 도구: {run_result.get('tool')}
+- 기준 시점: {run_result.get('reference_period')}
+- 사용한 행 수: {run_result.get('used_rows_count')}개, 제외한 행 수: {run_result.get('excluded_rows_count')}개
+- 상세 수치 테이블:
+{json.dumps(run_result.get('result', {}), ensure_ascii=False, indent=2)}
+"""
+
+    logger.info(f"[AI] easy-explain 요청 시작 (model={model_name})")
+
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(temperature=0.4)
+        )
+        logger.info("[AI] easy-explain 응답 수신 완료")
+        easy_text = response.text.strip()
+    except Exception as e:
+        logger.error(f"[ERROR] Gemini 쉬운 설명 생성 실패: {str(e)}", exc_info=True)
+        return jsonify({"error": f"쉬운 설명 생성 중 오류가 발생했습니다: {str(e)}"}), 500
+
+    return jsonify({
+        "status": "success",
+        "easy_explanation": easy_text
+    }), 200
+
+
 if __name__ == "__main__":
     logger.info("Starting AI Data Insight Builder server...")
     logger.info(f"Model configured: {GEMINI_MODEL}")

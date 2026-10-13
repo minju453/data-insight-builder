@@ -193,14 +193,36 @@
       <div id="explainResultArea" class="result-area hidden">
         <div class="report-header">
           <h3>📑 분석 해석 보고서</h3>
-          <button id="copyReportBtn" class="btn btn-outline btn-sm">📋 보고서 복사</button>
+          <div class="report-header-buttons">
+            <button id="easyExplainBtn" class="btn btn-warning btn-sm">🐣 쉬운 비유로 설명해줘</button>
+            <button id="copyReportBtn" class="btn btn-outline btn-sm">📋 보고서 복사</button>
+          </div>
         </div>
+
+        <!-- 1분 쉬운 비유 설명 박스 -->
+        <div id="easySummaryBox" class="easy-summary-box hidden">
+          <div class="easy-summary-header">
+            <span>💡 <strong>초등학생도 이해하는 1분 쉬운 비유 설명</strong></span>
+            <button id="closeEasyBtn" class="btn-close-sm" title="닫기">✕</button>
+          </div>
+          <div id="easySummaryContent" class="easy-summary-content"></div>
+        </div>
+
         <div id="reportContent" class="report-content"></div>
 
         <!-- 보고서 기반 후속 질문 영역 -->
         <div class="follow-up-card" id="followUpCard">
           <h4>💬 보고서 기반 추가 질문하기</h4>
           <p class="follow-up-desc">방금 생성된 분석 보고서나 통계 수치에 대해 더 궁금한 점을 질문해 보세요.</p>
+          
+          <!-- 추천 빠른 질문 칩들 -->
+          <div class="quick-question-chips">
+            <span class="chip-label">추천 질문:</span>
+            <button type="button" class="chip-btn" data-q="초등학생도 이해할 수 있게 아주 쉬운 일상생활 비유로 다시 풀어서 설명해 줘!">🐣 쉬운 비유로 다시 설명해줘</button>
+            <button type="button" class="chip-btn" data-q="이 분석 결과에서 한국의 위치와 수치는 어떤 의미인지 쉽게 알려줘!">🇰🇷 한국 위치 쉽게 알려줘</button>
+            <button type="button" class="chip-btn" data-q="이 통계 결과를 볼 때 일반인이 가장 많이 오해하거나 착각하기 쉬운 점이 뭐야?">⚠️ 흔한 착각과 주의점</button>
+          </div>
+
           <div class="follow-up-input-box">
             <input type="text" id="followUpQuestionInput" placeholder="예: 한국의 순위(13위)가 높은 편인가요? 1위 국가와 어떤 차이가 있나요?" />
             <button id="askFollowUpBtn" class="btn btn-secondary">질문하기 🚀</button>
