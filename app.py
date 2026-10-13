@@ -856,6 +856,79 @@ def explain():
     }), 200
 
 
+@app.route("/ask", methods=["POST"])
+def ask_question():
+    """
+    POST /ask
+    - AI 보고서 생성 후 사용자의 후속 질문에 답변
+    - [절대 규칙] 제공된 계산 수치와 보고서 맥락에만 근거하여 답변, 임의 추정/재계산 금지
+    """
+    global current_dataset
+    if current_dataset is None or "diagnosis" not in current_dataset:
+        return jsonify({"error": "먼저 데이터 진단을 완료해 주세요."}), 400
+
+    req_data = request.get_json(silent=True) or {}
+    user_question = req_data.get("question", "").strip()
+
+    if not user_question:
+        return jsonify({"error": "질문 내용을 입력해 주세요."}), 400
+
+    load_dotenv(override=True)
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
+
+    if not api_key or api_key == "your_gemini_api_key_here":
+        return jsonify({"error": "Gemini API Key가 설정되지 않았습니다. .env 파일을 확인해 주세요."}), 400
+
+    last_run = req_data.get("run_result") or current_dataset.get("last_run_result") or {}
+    last_report = req_data.get("report") or ""
+
+    prompt = f"""당신은 친절하고 정직한 데이터 교육 멘토입니다.
+사용자가 이미 생성된 통계 분석 보고서와 Pandas 계산 결과를 보고 후속 질문을 했습니다.
+
+[절대 답변 규칙]
+1. 반드시 아래 제공된 Pandas 계산 수치와 보고서 맥락에만 근거하여 사실대로 답변하세요.
+2. 절대로 스스로 숫자를 추정하거나 다시 계산하지 마세요.
+3. 데이터나 결과에 없는 내용(예: 지표 외의 원인, 데이터에 없는 국가)은 솔직히 "이 데이터셋에는 해당 정보가 없어 확인할 수 없습니다"라고 명확히 밝히세요.
+4. 상관관계를 인과관계(원인과 결과)로 단정 지어 설명하지 마세요.
+5. 학생도 쉽게 이해할 수 있도록 명확하고 부드러운 어조로 핵심 위주로 설명하세요.
+
+[분석 컨텍스트]
+- 도구: {last_run.get('tool', '미지정')}
+- 기준 시점: {last_run.get('reference_period', '전체')}
+- 사용한 행 수: {last_run.get('used_rows_count', 0)}개, 제외한 행 수: {last_run.get('excluded_rows_count', 0)}개
+- 제외 사유: {last_run.get('exclusion_reason', '없음')}
+- 계산 결과 수치(JSON):
+{json.dumps(last_run.get('result', {}), ensure_ascii=False, indent=2)}
+
+[기존 AI 분석 보고서 요약]
+{last_report[:2000]}
+
+[사용자의 후속 질문]
+"{user_question}"
+"""
+
+    logger.info(f"[AI] ask 후속 질문 요청 시작 (질문: {user_question[:30]}...)")
+
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(temperature=0.3)
+        )
+        logger.info("[AI] ask 응답 수신 완료")
+        answer_text = response.text.strip()
+    except Exception as e:
+        logger.error(f"[ERROR] Gemini 후속 질문 처리 실패: {str(e)}", exc_info=True)
+        return jsonify({"error": f"AI 답변 생성 중 오류가 발생했습니다: {str(e)}"}), 500
+
+    return jsonify({
+        "status": "success",
+        "answer": answer_text
+    }), 200
+
+
 if __name__ == "__main__":
     logger.info("Starting AI Data Insight Builder server...")
     logger.info(f"Model configured: {GEMINI_MODEL}")

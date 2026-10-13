@@ -568,6 +568,68 @@ function setupExplainHandler() {
 }
 
 // ============================================================
+// 후속 질문 핸들러 (/ask)
+// ============================================================
+function setupFollowUpHandler() {
+  const askBtn = document.getElementById("askFollowUpBtn");
+  const questionInput = document.getElementById("followUpQuestionInput");
+  const answerArea = document.getElementById("followUpAnswerArea");
+  const answerText = document.getElementById("followUpAnswerText");
+
+  async function handleAsk() {
+    const question = questionInput.value.trim();
+    if (!question) {
+      alert("질문 내용을 입력해 주세요.");
+      return;
+    }
+
+    clearError();
+    askBtn.disabled = true;
+    askBtn.textContent = "AI 답변 생성 중...";
+
+    console.log(`[EXPLAIN] 후속 질문 요청 시작 (질문: ${question.substring(0, 30)}...)`);
+
+    try {
+      const res = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: question,
+          report: AppState.lastReport,
+          run_result: AppState.lastRunResult
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "답변 생성 중 오류가 발생했습니다.");
+      }
+
+      console.log("[EXPLAIN] 후속 질문 답변 수신 완료");
+
+      // 답변 렌더링
+      answerText.innerHTML = renderMarkdown(data.answer);
+      answerArea.classList.remove("hidden");
+      answerArea.scrollIntoView({ behavior: "smooth" });
+
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      askBtn.disabled = false;
+      askBtn.textContent = "질문하기 🚀";
+    }
+  }
+
+  askBtn.addEventListener("click", handleAsk);
+  questionInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      handleAsk();
+    }
+  });
+}
+
+// ============================================================
 // 오류 복사 핸들러 (오류 발생 시 AI에게 전달)
 // ============================================================
 function setupErrorCopyHandler() {
@@ -593,5 +655,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setupSuggestHandler();
   setupRunHandler();
   setupExplainHandler();
+  setupFollowUpHandler();
   setupErrorCopyHandler();
 });

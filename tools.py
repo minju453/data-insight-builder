@@ -372,6 +372,18 @@ def describe_numeric(df, reference_period=None, column=None, exclude_aggregates=
     q75_val = round(float(valid_series.quantile(0.75)), 3)
     max_val = round(float(valid_series.max()), 3)
 
+    chart_data = {
+        "type": "bar",
+        "labels": ["최소값 (Min)", "하위 25% (Q1)", "중앙값 (Median)", "평균 (Mean)", "상위 75% (Q3)", "최대값 (Max)"],
+        "datasets": [
+            {
+                "label": f"{target_col} 주요 통계 지표",
+                "data": [min_val, q25_val, median_val, mean_val, q75_val, max_val],
+                "backgroundColor": ["#64748b", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"]
+            }
+        ]
+    }
+
     return {
         "tool": "describe_numeric",
         "reference_period": target_col,
@@ -391,7 +403,8 @@ def describe_numeric(df, reference_period=None, column=None, exclude_aggregates=
             "median": median_val,
             "q75": q75_val,
             "max": max_val
-        }
+        },
+        "chart_data": chart_data
     }
 
 

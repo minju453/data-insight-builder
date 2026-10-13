@@ -196,6 +196,22 @@
           <button id="copyReportBtn" class="btn btn-outline btn-sm">📋 보고서 복사</button>
         </div>
         <div id="reportContent" class="report-content"></div>
+
+        <!-- 보고서 기반 후속 질문 영역 -->
+        <div class="follow-up-card" id="followUpCard">
+          <h4>💬 보고서 기반 추가 질문하기</h4>
+          <p class="follow-up-desc">방금 생성된 분석 보고서나 통계 수치에 대해 더 궁금한 점을 질문해 보세요.</p>
+          <div class="follow-up-input-box">
+            <input type="text" id="followUpQuestionInput" placeholder="예: 한국의 순위(13위)가 높은 편인가요? 1위 국가와 어떤 차이가 있나요?" />
+            <button id="askFollowUpBtn" class="btn btn-secondary">질문하기 🚀</button>
+          </div>
+          <div id="followUpAnswerArea" class="follow-up-answer-area hidden">
+            <div class="answer-header">
+              <strong>🤖 AI 답변:</strong>
+            </div>
+            <div id="followUpAnswerText" class="follow-up-answer-text"></div>
+          </div>
+        </div>
       </div>
     </section>
 
