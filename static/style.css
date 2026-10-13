@@ -1,0 +1,678 @@
+/* ============================================================
+   AI Data Insight Builder - Vanilla CSS Stylesheet
+   외부 프레임워크(Bootstrap, Tailwind) 없이 순수 CSS로 작성
+   ============================================================ */
+
+:root {
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --secondary: #4f46e5;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --border-focus: #3b82f6;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  line-height: 1.6;
+  padding-bottom: 60px;
+}
+
+/* ------------------------------------------------------------
+   상단 헤더 & 배너
+   ------------------------------------------------------------ */
+.app-header {
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.header-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.logo-area h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.logo-area .subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.status-badge-area {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.badge-loading { background-color: #e2e8f0; color: #475569; }
+.badge-success { background-color: #d1fae5; color: #065f46; }
+.badge-warning { background-color: #fef3c7; color: #92400e; }
+.badge-info { background-color: #e0e7ff; color: #3730a3; }
+
+.memory-notice-banner {
+  background-color: #fffbeb;
+  border-top: 1px solid #fef3c7;
+  padding: 8px 20px;
+  font-size: 0.85rem;
+  color: #92400e;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------
+   메인 컨테이너 & 카드 레이아웃
+   ------------------------------------------------------------ */
+.app-main {
+  max-width: 1100px;
+  margin: 24px auto;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* 단계 헤더 */
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.step-number {
+  background-color: var(--primary);
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-header h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.step-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+/* ------------------------------------------------------------
+   버튼 및 인풋
+   ------------------------------------------------------------ */
+.btn {
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary { background-color: var(--primary); color: #ffffff; }
+.btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); }
+
+.btn-secondary { background-color: var(--secondary); color: #ffffff; }
+.btn-secondary:hover:not(:disabled) { background-color: #4338ca; }
+
+.btn-success { background-color: var(--success); color: #ffffff; }
+.btn-success:hover:not(:disabled) { background-color: #059669; }
+
+.btn-outline {
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+.btn-outline:hover:not(:disabled) { background-color: #f1f5f9; }
+
+.btn-sm { font-size: 0.8rem; padding: 6px 12px; }
+
+.action-buttons {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+/* ------------------------------------------------------------
+   1단계: 파일 업로드 드롭존
+   ------------------------------------------------------------ */
+.upload-dropzone {
+  border: 2px dashed #cbd5e1;
+  border-radius: var(--radius-md);
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  background-color: #f8fafc;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.upload-dropzone:hover, .upload-dropzone.drag-over {
+  border-color: var(--primary);
+  background-color: #eff6ff;
+}
+
+.file-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dropzone-icon {
+  font-size: 2.2rem;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.dropzone-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 4px;
+}
+
+.selected-file-info {
+  margin-top: 12px;
+  font-size: 0.9rem;
+  padding: 10px 14px;
+  background-color: #f1f5f9;
+  border-radius: var(--radius-sm);
+}
+
+/* ------------------------------------------------------------
+   진단 결과 영역 (13대 지표)
+   ------------------------------------------------------------ */
+.result-area {
+  margin-top: 24px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 20px;
+}
+
+.result-area h3 {
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+}
+
+.diagnose-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.diag-card {
+  background-color: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.diag-card .label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  display: block;
+}
+
+.diag-card .value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 2px;
+}
+
+.warning-box {
+  background-color: #fffbeb;
+  border-left: 4px solid var(--warning);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+}
+
+.warning-box h4 {
+  font-size: 0.9rem;
+  color: #92400e;
+  margin-bottom: 6px;
+}
+
+.warning-box ul {
+  padding-left: 20px;
+  font-size: 0.85rem;
+  color: #78350f;
+}
+
+.table-container {
+  overflow-x: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  max-height: 320px;
+  margin-top: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+th, td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+th {
+  background-color: #f1f5f9;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+
+tr:hover td {
+  background-color: #f8fafc;
+}
+
+/* ------------------------------------------------------------
+   2단계: Gemini 제안 카드
+   ------------------------------------------------------------ */
+.suggestions-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.suggestion-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  background-color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  transition: all 0.2s ease;
+}
+
+.suggestion-card:hover {
+  border-color: var(--primary);
+  background-color: #faf5ff;
+}
+
+.sugg-content h4 {
+  font-size: 1.05rem;
+  color: var(--primary);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sugg-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  background-color: #ede9fe;
+  color: #6d28d9;
+  border-radius: 9999px;
+}
+
+.sugg-why {
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+  color: #334155;
+}
+
+.sugg-caution {
+  font-size: 0.8rem;
+  color: #b45309;
+  background-color: #fef3c7;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+
+/* ------------------------------------------------------------
+   3단계: 도구 파라미터 폼
+   ------------------------------------------------------------ */
+.tool-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-row label {
+  font-size: 0.9rem;
+}
+
+.form-row input[type="text"],
+.form-row input[type="number"] {
+  padding: 9px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+}
+
+.form-row input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.input-readonly {
+  background-color: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+}
+
+.form-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.required {
+  color: var(--danger);
+}
+
+.checkbox-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
+}
+
+.tool-form .action-buttons {
+  grid-column: 1 / -1;
+}
+
+/* ------------------------------------------------------------
+   4단계: 결과 신뢰성 배지 & Chart.js 캔버스
+   ------------------------------------------------------------ */
+.audit-badge-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.audit-badge {
+  background-color: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.audit-badge.full-width {
+  grid-column: 1 / -1;
+}
+
+.audit-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  display: block;
+}
+
+.audit-val {
+  font-size: 1.25rem;
+  margin-top: 2px;
+  display: block;
+}
+
+.audit-text {
+  font-size: 0.88rem;
+  color: #334155;
+  display: block;
+  margin-top: 2px;
+}
+
+.text-success { color: var(--success); }
+.text-danger { color: var(--danger); }
+
+.chart-wrapper {
+  background-color: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 20px;
+  position: relative;
+  min-height: 380px;
+}
+
+.calculation-table-box {
+  margin-top: 16px;
+}
+
+.calculation-table-box h4 {
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+}
+
+.calc-display {
+  background-color: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-size: 0.85rem;
+  overflow-x: auto;
+}
+
+/* ------------------------------------------------------------
+   5단계: 모드 A/B & 마크다운 보고서
+   ------------------------------------------------------------ */
+.mode-select-box {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.mode-option {
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+.mode-option:hover {
+  border-color: var(--primary);
+  background-color: #eff6ff;
+}
+
+.mode-option input[type="radio"]:checked + .mode-desc {
+  color: var(--text-main);
+}
+
+.mode-desc strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.mode-desc span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  display: block;
+}
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.report-content {
+  background-color: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  line-height: 1.8;
+  font-size: 0.95rem;
+}
+
+.report-content h2 {
+  font-size: 1.15rem;
+  color: var(--primary);
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 6px;
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+
+.report-content h2:first-child {
+  margin-top: 0;
+}
+
+.report-content p {
+  margin-bottom: 12px;
+}
+
+.report-content ul, .report-content ol {
+  padding-left: 24px;
+  margin-bottom: 12px;
+}
+
+/* ------------------------------------------------------------
+   오류 카드
+   ------------------------------------------------------------ */
+.error-card {
+  border-color: var(--danger);
+  background-color: #fef2f2;
+}
+
+.error-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.error-header h3 {
+  color: var(--danger);
+  font-size: 1.1rem;
+}
+
+.error-message {
+  font-size: 0.95rem;
+  color: #991b1b;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.error-details {
+  font-size: 0.8rem;
+  color: #7f1d1d;
+}
+
+/* ------------------------------------------------------------
+   푸터
+   ------------------------------------------------------------ */
+.app-footer {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 40px;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .mode-select-box {
+    grid-template-columns: 1fr;
+  }
+  .suggestion-card {
+    flex-direction: column;
+  }
+}

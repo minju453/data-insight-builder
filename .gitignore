@@ -1,0 +1,23 @@
+# 환경변수 및 비밀 키 (절대 커밋 금지)
+.env
+
+# 파이썬 가상환경
+.venv/
+venv/
+env/
+
+# 파이썬 바이트코드 및 캐시
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE 및 에디터 설정
+.vscode/
+.idea/
+
+# 운영체제 임시 파일
+Thumbs.db
+.DS_Store
+
+# 로그 파일
+*.log

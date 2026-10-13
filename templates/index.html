@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Data Insight Builder</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- Chart.js CDN (Framework 제외 순수 라이브러리) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- 상단 네비게이션 및 상태바 -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="logo-area">
+        <h1>📊 AI Data Insight Builder</h1>
+        <p class="subtitle">공공기관 CSV 데이터 진단부터 Pandas 정확한 계산, Gemini 해석까지</p>
+      </div>
+      <div class="status-badge-area">
+        <span id="serverStatusBadge" class="badge badge-loading">서버 상태 확인 중...</span>
+        <span id="apiKeyBadge" class="badge badge-warning">API Key 확인 중</span>
+        <span id="modelBadge" class="badge badge-info">Model: ...</span>
+      </div>
+    </div>
+    <div class="memory-notice-banner">
+      ⚠️ <strong>안내:</strong> 업로드된 데이터는 서버 재시작 시 사라지는 메모리(RAM)에 1개만 임시 보관되며, 디스크에 영구 저장되지 않습니다.
+    </div>
+  </header>
+
+  <main class="app-main">
+    <!-- 1단계: CSV 업로드 및 진단 -->
+    <section class="card step-section" id="step1Section">
+      <div class="step-header">
+        <span class="step-number">1</span>
+        <h2>CSV 파일 업로드 및 자동 진단 (/inspect)</h2>
+      </div>
+      <p class="step-desc">World Bank, 공공데이터포털 등에서 다운로드한 CSV 파일을 업로드하면 인코딩과 상단 헤더 위치를 자동으로 찾아냅니다.</p>
+
+      <div class="upload-dropzone" id="dropZone">
+        <input type="file" id="csvFileInput" accept=".csv" class="file-input">
+        <div class="dropzone-content">
+          <span class="dropzone-icon">📁</span>
+          <p><strong>클릭하여 CSV 파일을 선택</strong>하거나 이곳으로 드래그하세요.</p>
+          <span class="dropzone-hint">(.csv 형식, 최대 10MB)</span>
+        </div>
+      </div>
+      <div id="selectedFileInfo" class="selected-file-info hidden">
+        선택된 파일: <strong id="selectedFileName">-</strong> (<span id="selectedFileSize">-</span>)
+      </div>
+
+      <div class="action-buttons">
+        <button id="inspectBtn" class="btn btn-primary" disabled>🔍 데이터 진단 시작</button>
+      </div>
+
+      <!-- 진단 결과 표시 영역 -->
+      <div id="inspectResultArea" class="result-area hidden">
+        <h3>📋 13대 데이터 진단 요약</h3>
+        <div class="diagnose-grid" id="diagnoseGrid"></div>
+        <div id="diagnoseWarnings" class="warning-box hidden"></div>
+
+        <div class="preview-box">
+          <h4>데이터 미리보기 (상위 10행)</h4>
+          <div class="table-container" id="previewTableContainer"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2단계: Gemini 도구 추천 -->
+    <section class="card step-section hidden" id="step2Section">
+      <div class="step-header">
+        <span class="step-number">2</span>
+        <h2>Gemini AI 분석 제안 (/suggest)</h2>
+      </div>
+      <p class="step-desc">진단 요약을 확인한 Gemini가 이 데이터에 가장 적합한 12가지 카탈로그 분석 도구 중 3~5개를 선별해 제안합니다.</p>
+
+      <div class="action-buttons">
+        <button id="suggestBtn" class="btn btn-secondary">💡 AI 추천 분석 받기</button>
+      </div>
+
+      <div id="suggestResultArea" class="result-area hidden">
+        <h3>✨ 맞춤 분석 제안 목록</h3>
+        <div id="suggestionsList" class="suggestions-grid"></div>
+      </div>
+    </section>
+
+    <!-- 3단계: 도구 파라미터 설정 및 Pandas 계산 실행 -->
+    <section class="card step-section hidden" id="step3Section">
+      <div class="step-header">
+        <span class="step-number">3</span>
+        <h2>도구 파라미터 확인 및 Pandas 계산 실행 (/run)</h2>
+      </div>
+      <p class="step-desc">선택된 도구의 기준 시점과 옵션을 확인하고 로컬 Pandas로 계산을 수행합니다. (Gemini에게 계산을 시키지 않습니다)</p>
+
+      <form id="runToolForm" class="tool-form">
+        <div class="form-row">
+          <label for="activeToolName"><strong>선택된 도구</strong></label>
+          <input type="text" id="activeToolName" readonly class="input-readonly">
+        </div>
+        <div class="form-row">
+          <label for="referencePeriodInput"><strong>기준 시점 (reference_period)</strong> <span class="required">*</span></label>
+          <input type="text" id="referencePeriodInput" placeholder="예: 2024" required>
+          <small class="form-hint">권장 기준연도 또는 비교할 컬럼명을 입력하세요.</small>
+        </div>
+        <div class="form-row" id="comparePeriodRow">
+          <label for="comparePeriodInput"><strong>비교 시점 (compare_period)</strong></label>
+          <input type="text" id="comparePeriodInput" placeholder="예: 2014 (변화량 분석 시 필요)">
+        </div>
+        <div class="form-row" id="nParamRow">
+          <label for="nParamInput"><strong>상위/하위 항목 수 (N)</strong></label>
+          <input type="number" id="nParamInput" value="10" min="1" max="100">
+        </div>
+        <div class="form-row checkbox-row">
+          <label>
+            <input type="checkbox" id="excludeAggregatesCheckbox" checked>
+            <span>World, OECD 등 집계 행 제외 (왜곡 방지 기본값)</span>
+          </label>
+        </div>
+        <div class="action-buttons">
+          <button type="submit" id="runBtn" class="btn btn-success">⚙️ Pandas 분석 실행</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 4단계: 계산 결과 및 차트 시각화 -->
+    <section class="card step-section hidden" id="step4Section">
+      <div class="step-header">
+        <span class="step-number">4</span>
+        <h2>Pandas 계산 결과 및 시각화</h2>
+      </div>
+
+      <!-- 신뢰성 지표 배지 (기준시점, 사용 행, 제외 행) -->
+      <div class="audit-badge-container">
+        <div class="audit-badge">
+          <span class="audit-label">기준 시점</span>
+          <strong id="auditRefPeriod" class="audit-val">-</strong>
+        </div>
+        <div class="audit-badge">
+          <span class="audit-label">사용한 행 수</span>
+          <strong id="auditUsedRows" class="audit-val text-success">-</strong>
+        </div>
+        <div class="audit-badge">
+          <span class="audit-label">제외한 행 수</span>
+          <strong id="auditExcludedRows" class="audit-val text-danger">-</strong>
+        </div>
+        <div class="audit-badge full-width">
+          <span class="audit-label">제외 사유</span>
+          <span id="auditExclusionReason" class="audit-text">-</span>
+        </div>
+      </div>
+
+      <!-- Chart.js 캔버스 -->
+      <div class="chart-wrapper" id="chartWrapper">
+        <canvas id="insightChart"></canvas>
+      </div>
+
+      <!-- 계산 결과 요약 테이블 -->
+      <div class="calculation-table-box">
+        <h4>상세 계산 수치 요약</h4>
+        <div id="calculationResultDisplay" class="calc-display"></div>
+      </div>
+    </section>
+
+    <!-- 5단계: Gemini 심층 해석 (Prompt 모드 A/B) -->
+    <section class="card step-section hidden" id="step5Section">
+      <div class="step-header">
+        <span class="step-number">5</span>
+        <h2>Gemini AI 심층 해석 보고서 (/explain)</h2>
+      </div>
+      <p class="step-desc">Pandas가 계산한 결과만을 엄격히 전달하여 허위 정보 없는 고품질 해석 보고서를 생성합니다.</p>
+
+      <div class="mode-select-box">
+        <label class="mode-option">
+          <input type="radio" name="explainMode" value="B" checked>
+          <div class="mode-desc">
+            <strong>모드 B (정식 보고서 - 강력 추천)</strong>
+            <span>Pandas의 실제 계산 숫자만 전달하고 8대 엄격 규칙을 준수하여 7개 목차로 신뢰성 있게 해석합니다.</span>
+          </div>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="explainMode" value="A">
+          <div class="mode-desc">
+            <strong>모드 A (비교용 허술한 모드)</strong>
+            <span>계산 결과를 주지 않고 진단 요약만 주어 AI의 추정/환각 위험성을 직접 비교 체험합니다.</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="action-buttons">
+        <button id="explainBtn" class="btn btn-primary">📝 AI 해석 보고서 생성</button>
+      </div>
+
+      <!-- 마크다운 보고서 출력 영역 -->
+      <div id="explainResultArea" class="result-area hidden">
+        <div class="report-header">
+          <h3>📑 분석 해석 보고서</h3>
+          <button id="copyReportBtn" class="btn btn-outline btn-sm">📋 보고서 복사</button>
+        </div>
+        <div id="reportContent" class="report-content"></div>
+      </div>
+    </section>
+
+    <!-- 오류 발생 시 AI 공유용 오류 박스 -->
+    <section id="errorCard" class="card error-card hidden">
+      <div class="error-header">
+        <h3>⚠️ 오류 발생 안내</h3>
+        <button id="copyErrorBtn" class="btn btn-outline btn-sm">오류 상태 복사</button>
+      </div>
+      <p id="errorMessageText" class="error-message"></p>
+      <div class="error-details">
+        <small>문제가 지속될 경우 '오류 상태 복사'를 눌러 현재 상태를 AI에게 그대로 전달하세요.</small>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>AI Data Insight Builder &copy; 2026. Made with Flask, Pandas, Vanilla JS, Chart.js & Gemini API.</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
