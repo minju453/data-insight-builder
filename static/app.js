@@ -465,9 +465,120 @@ function renderRunResult(runResult) {
     document.getElementById("chartWrapper").style.display = "none";
   }
 
-  // 상세 계산 수치 표기
+  // 상세 계산 수치 표기 (친절한 비교 표 및 상세 요약 렌더링)
   const calcDisplay = document.getElementById("calculationResultDisplay");
-  calcDisplay.innerHTML = `<pre><code>${JSON.stringify(runResult.result, null, 2)}</code></pre>`;
+  calcDisplay.innerHTML = renderCalculationSummary(runResult.result);
+}
+
+function renderCalculationSummary(result) {
+  if (!result || typeof result !== "object") {
+    return `<pre><code>${JSON.stringify(result, null, 2)}</code></pre>`;
+  }
+
+  // 1) 순위 비교 테이블 (ranking_comparison_list가 있는 경우)
+  if (Array.isArray(result.ranking_comparison_list) && result.ranking_comparison_list.length > 0) {
+    let html = "";
+
+    // 비교 대상 요약 카드
+    if (result.comparison_target) {
+      const ct = result.comparison_target;
+      const diff1Str = ct.diff_from_1st > 0 ? `+${ct.diff_from_1st}` : `${ct.diff_from_1st}`;
+      const diff10Str = ct.diff_from_10th > 0 ? `+${ct.diff_from_10th}` : `${ct.diff_from_10th}`;
+      html += `
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px;">
+          <h4 style="margin: 0 0 6px 0; color: #1d4ed8; font-size: 15px; font-weight: 700;">🎯 ${ct.name} 순위 및 비교 분석 요약</h4>
+          <p style="margin: 0; font-size: 13.5px; color: #1f2937; line-height: 1.6;">
+            전체 <strong>${ct.total_count}개국</strong> 중 <strong>${ct.rank}위</strong> (상위 <strong>${ct.percentile}%</strong>)에 위치하며,
+            수치는 <strong style="color: #dc2626; font-size: 15px;">${ct.value}%</strong>입니다.<br>
+            • 1위와의 격차: <strong>${diff1Str}%p</strong> | • 10위와의 격차: <strong>${diff10Str}%p</strong>
+          </p>
+        </div>
+      `;
+    }
+
+    html += `
+      <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <table class="table-preview" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+          <thead>
+            <tr style="background: #f8fafc; text-align: left; border-bottom: 2px solid #e2e8f0;">
+              <th style="padding: 10px 14px; width: 70px;">순위</th>
+              <th style="padding: 10px 14px;">국가 / 대상</th>
+              <th style="padding: 10px 14px; text-align: right; width: 120px;">수치 (%)</th>
+              <th style="padding: 10px 14px; text-align: center; width: 110px;">구분</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    result.ranking_comparison_list.forEach(row => {
+      const isTarget = row.is_target;
+      const rowStyle = isTarget
+        ? "background: #fee2e2; font-weight: 700; border-left: 4px solid #ef4444;"
+        : "border-bottom: 1px solid #f1f5f9;";
+      const badge = isTarget
+        ? `<span style="background: #ef4444; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px;">⭐ 비교 대상</span>`
+        : `<span style="background: #e2e8f0; color: #475569; padding: 3px 8px; border-radius: 12px; font-size: 11px;">상위권</span>`;
+
+      html += `
+        <tr style="${rowStyle}">
+          <td style="padding: 9px 14px;">${row.rank}위</td>
+          <td style="padding: 9px 14px;">${row.label}</td>
+          <td style="padding: 9px 14px; text-align: right; font-weight: ${isTarget ? '800' : 'normal'}; color: ${isTarget ? '#dc2626' : 'inherit'};">${row.value}%</td>
+          <td style="padding: 9px 14px; text-align: center;">${badge}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+      <details style="margin-top: 14px; font-size: 12px; color: #64748b;">
+        <summary style="cursor: pointer; padding: 4px 0;">🔍 개발자용 상세 원본 데이터(JSON) 보기</summary>
+        <pre style="margin-top: 8px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;"><code>${JSON.stringify(result, null, 2)}</code></pre>
+      </details>
+    `;
+
+    return html;
+  }
+
+  // 2) 기본 top_n만 있는 경우
+  if (Array.isArray(result.top_n) && result.top_n.length > 0) {
+    let html = `
+      <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <table class="table-preview" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+          <thead>
+            <tr style="background: #f8fafc; text-align: left; border-bottom: 2px solid #e2e8f0;">
+              <th style="padding: 10px 14px; width: 70px;">순위</th>
+              <th style="padding: 10px 14px;">국가 / 대상</th>
+              <th style="padding: 10px 14px; text-align: right; width: 120px;">수치</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+    result.top_n.forEach(row => {
+      html += `
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding: 9px 14px;">${row.rank}위</td>
+          <td style="padding: 9px 14px;">${row.label}</td>
+          <td style="padding: 9px 14px; text-align: right;">${row.value}</td>
+        </tr>
+      `;
+    });
+    html += `
+          </tbody>
+        </table>
+      </div>
+      <details style="margin-top: 14px; font-size: 12px; color: #64748b;">
+        <summary style="cursor: pointer; padding: 4px 0;">🔍 상세 원본 데이터(JSON) 보기</summary>
+        <pre style="margin-top: 8px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;"><code>${JSON.stringify(result, null, 2)}</code></pre>
+      </details>
+    `;
+    return html;
+  }
+
+  // 3) 그 외 기본 JSON 표기
+  return `<pre><code>${JSON.stringify(result, null, 2)}</code></pre>`;
 }
 
 function renderChart(chartConfig) {

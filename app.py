@@ -1092,15 +1092,117 @@ def natural_language_query():
         logger.error(f"[ERROR] Pandas 계산 실패: {str(e)}")
         return jsonify({"error": f"계산 실행 중 오류가 발생했습니다: {str(e)}"}), 500
 
-    # 만약 '대한민국' 또는 '한국' 비교 질문인데 top_bottom_n인 경우, 한국 수치도 조회하여 보강
-    extra_korea_info = None
-    if any(k in user_query for k in ["대한민국", "한국", "korea"]):
+    # 대상 국가/항목 탐색 (한국, 미국, 일본, 중국 등 질문 내 비교 대상 식별)
+    target_item = None
+    target_display_name = None
+    if any(k in user_query for k in ["대한민국", "한국", "korea", "South Korea"]):
+        target_item = "Korea, Rep."
+        target_display_name = "대한민국"
+    elif any(k in user_query for k in ["미국", "united states", "usa"]):
+        target_item = "United States"
+        target_display_name = "미국"
+    elif any(k in user_query for k in ["일본", "japan"]):
+        target_item = "Japan"
+        target_display_name = "일본"
+    elif any(k in user_query for k in ["중국", "china"]):
+        target_item = "China"
+        target_display_name = "중국"
+    elif mapping_data.get("compare_target"):
+        target_item = mapping_data.get("compare_target")
+        target_display_name = target_item
+    elif params.get("target_item"):
+        target_item = params.get("target_item")
+        target_display_name = target_item
+
+    extra_target_info = None
+    if target_item:
         try:
-            korea_comp = tools.compare_one_vs_all(df, reference_period=params.get("reference_period", rec_year), target_item="Korea, Rep.")
-            if "result" in korea_comp:
-                extra_korea_info = korea_comp["result"]
-        except Exception:
-            pass
+            comp_res = tools.compare_one_vs_all(
+                df,
+                reference_period=params.get("reference_period", rec_year),
+                target_item=target_item
+            )
+            if "result" in comp_res and "error" not in comp_res:
+                extra_target_info = comp_res["result"]
+        except Exception as e:
+            logger.warning(f"비교 대상 수치 산출 실패: {str(e)}")
+
+    # [자연어 질문과 시각화 그래프 일치화 로직]
+    # 도구가 top_bottom_n이고 특정 비교 대상(예: 대한민국)이 있는 경우:
+    if tool_name == "top_bottom_n" and extra_target_info and "top_n" in run_result.get("result", {}):
+        top_list = run_result["result"]["top_n"]
+        t_val = extra_target_info["target_value"]
+        t_rank = extra_target_info["rank"]
+        t_total = extra_target_info["total_count"]
+        t_name = target_display_name or extra_target_info["target_item"]
+
+        # 1) 질문에서 '하위'나 '최하위'를 묻지 않았다면 무관한 bottom_n(부룬디, 차드 등)을 제거하여 혼란 방지
+        if not any(b in user_query for b in ["하위", "bottom", "최하위", "꼴등"]):
+            run_result["result"].pop("bottom_n", None)
+
+        # 2) 비교 대상이 상위 N에 이미 포함되어 있는지 확인
+        already_in_top = any(
+            t_name in item["label"] or target_item.lower() in item["label"].lower()
+            for item in top_list
+        )
+
+        ref_period_str = run_result.get("reference_period", rec_year)
+
+        # 3) 차트 데이터 업데이트 (Top 10 국가 + 대한민국을 시각화에 명확히 반영)
+        if run_result.get("chart_data"):
+            # top_bottom_n의 기본 라벨은 1위가 상단에 오도록 reversed(top_list) 순서임
+            existing_labels = list(run_result["chart_data"].get("labels", []))
+            existing_data = list(run_result["chart_data"]["datasets"][0].get("data", []))
+
+            if not already_in_top:
+                # 상위 10위 밖(예: 13위)이므로 차트 아래쪽에 비교 대상(대한민국) 막대 추가
+                new_label = f"{t_name} ({t_rank}위)"
+                # 수평 막대에서 가장 아래쪽에 위치하도록 reversed 리스트의 맨 앞에 삽입
+                updated_labels = [new_label] + existing_labels
+                updated_data = [t_val] + existing_data
+                updated_colors = ["#ef4444"] + ["#3b82f6"] * len(existing_data)
+            else:
+                updated_labels = existing_labels
+                updated_data = existing_data
+                # 이미 상위에 있으면 해당 국가 막대만 빨간색(#ef4444)으로 강조
+                updated_colors = [
+                    "#ef4444" if (t_name in lbl or target_item.lower() in lbl.lower()) else "#3b82f6"
+                    for lbl in updated_labels
+                ]
+
+            run_result["chart_data"]["labels"] = updated_labels
+            run_result["chart_data"]["datasets"][0]["data"] = updated_data
+            run_result["chart_data"]["datasets"][0]["backgroundColor"] = updated_colors
+            run_result["chart_data"]["datasets"][0]["label"] = f"{ref_period_str}년 상위 {len(top_list)}개국 및 {t_name} 비교"
+
+        # 4) result 객체에 비교 요약 데이터 추가 (프론트엔드 표 렌더링에 사용)
+        diff_from_1st = round(t_val - top_list[0]["value"], 2) if top_list else 0.0
+        diff_from_last_top = round(t_val - top_list[-1]["value"], 2) if top_list else 0.0
+
+        run_result["result"]["comparison_target"] = {
+            "name": t_name,
+            "raw_item": target_item,
+            "rank": t_rank,
+            "total_count": t_total,
+            "percentile": extra_target_info.get("percentile"),
+            "value": t_val,
+            "diff_from_1st": diff_from_1st,
+            "diff_from_10th": diff_from_last_top
+        }
+
+        # 표로 출력할 통합 순위 리스트
+        ranking_table = [
+            {"rank": item["rank"], "label": item["label"], "value": item["value"], "is_target": False}
+            for item in top_list
+        ]
+        if not already_in_top:
+            ranking_table.append({
+                "rank": t_rank,
+                "label": f"★ {t_name} ({extra_target_info['target_item']})",
+                "value": t_val,
+                "is_target": True
+            })
+        run_result["result"]["ranking_comparison_list"] = ranking_table
 
     # 3. 계산된 실제 수치를 바탕으로 Gemini가 친절한 자연어 답변 작성 (절대 직접 계산 금지)
     answer_prompt = f"""당신은 데이터 분석 교육 멘토입니다.
@@ -1120,7 +1222,7 @@ def natural_language_query():
 - 사용한 국가 수: {run_result.get('used_rows_count')}개국, 제외된 행 수: {run_result.get('excluded_rows_count')}개
 - 계산 수치 데이터:
 {json.dumps(run_result.get('result', {}), ensure_ascii=False, indent=2)}
-{f"- 한국 비교 추가 수치: {json.dumps(extra_korea_info, ensure_ascii=False)}" if extra_korea_info else ""}
+{f"- 특정 대상({target_display_name or target_item}) 비교 수치: {json.dumps(extra_target_info, ensure_ascii=False)}" if extra_target_info else ""}
 """
 
     try:
