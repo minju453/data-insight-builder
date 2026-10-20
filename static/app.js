@@ -590,7 +590,124 @@ function renderCalculationSummary(result) {
     return html;
   }
 
-  // 3) 그 외 기본 JSON 표기
+  // 3) 특정 국가 vs 전체 평균/중앙값 (compare_one_vs_all)
+  if (result.target_item && result.overall_mean !== undefined) {
+    const diffM = result.diff_from_mean > 0 ? `+${result.diff_from_mean}` : `${result.diff_from_mean}`;
+    const diffMed = result.diff_from_median > 0 ? `+${result.diff_from_median}` : `${result.diff_from_median}`;
+    return `
+      <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px;">
+        <h4 style="margin: 0 0 10px 0; color: #1d4ed8; font-size: 16px; font-weight: 700;">🎯 ${result.target_item} vs 전 세계 통계 비교</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 10px;">
+          <div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 11px; color: #64748b;">${result.target_item} 수치</div>
+            <div style="font-size: 18px; font-weight: 800; color: #dc2626;">${result.target_value}%</div>
+          </div>
+          <div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 11px; color: #64748b;">전 세계 순위</div>
+            <div style="font-size: 18px; font-weight: 800; color: #1e293b;">${result.rank}위 <span style="font-size: 12px; font-weight: 500; color: #64748b;">/ ${result.total_count}개국</span></div>
+          </div>
+          <div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 11px; color: #64748b;">전 세계 평균</div>
+            <div style="font-size: 18px; font-weight: 800; color: #475569;">${result.overall_mean}% <span style="font-size: 12px; color: #16a34a;">(${diffM}%p)</span></div>
+          </div>
+          <div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 11px; color: #64748b;">전 세계 중앙값</div>
+            <div style="font-size: 18px; font-weight: 800; color: #475569;">${result.overall_median}% <span style="font-size: 12px; color: #16a34a;">(${diffMed}%p)</span></div>
+          </div>
+        </div>
+      </div>
+      <details style="margin-top: 12px; font-size: 12px; color: #64748b;">
+        <summary style="cursor: pointer;">🔍 상세 원본 데이터(JSON) 보기</summary>
+        <pre style="margin-top: 8px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;"><code>${JSON.stringify(result, null, 2)}</code></pre>
+      </details>
+    `;
+  }
+
+  // 4) 기술통계 요약 (describe_numeric)
+  if (result.mean !== undefined && result.median !== undefined && result.min !== undefined) {
+    return `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px;">
+        <h4 style="margin: 0 0 10px 0; color: #334155; font-size: 16px; font-weight: 700;">📊 ${result.column || '기준시점'} 전 세계 수치 기술통계 요약</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-top: 10px;">
+          <div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 11px; color: #64748b;">표본 국가 수</div>
+            <div style="font-size: 17px; font-weight: 800; color: #0f172a;">${result.count}개국</div>
+          </div>
+          <div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 11px; color: #64748b;">평균 (Mean)</div>
+            <div style="font-size: 17px; font-weight: 800; color: #2563eb;">${result.mean}%</div>
+          </div>
+          <div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 11px; color: #64748b;">중앙값 (Median)</div>
+            <div style="font-size: 17px; font-weight: 800; color: #16a34a;">${result.median}%</div>
+          </div>
+          <div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 11px; color: #64748b;">최솟값 ~ 최댓값</div>
+            <div style="font-size: 15px; font-weight: 800; color: #475569;">${result.min}% ~ ${result.max}%</div>
+          </div>
+        </div>
+      </div>
+      <details style="margin-top: 12px; font-size: 12px; color: #64748b;">
+        <summary style="cursor: pointer;">🔍 상세 원본 데이터(JSON) 보기</summary>
+        <pre style="margin-top: 8px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;"><code>${JSON.stringify(result, null, 2)}</code></pre>
+      </details>
+    `;
+  }
+
+  // 5) 시계열 추이 비교 요약 (trend_line)
+  if (result.selected_items && Array.isArray(result.selected_items)) {
+    return `
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px;">
+        <h4 style="margin: 0 0 8px 0; color: #15803d; font-size: 16px; font-weight: 700;">📈 시계열 비교 분석 대상</h4>
+        <p style="margin: 0; font-size: 14px; color: #1f2937;">
+          선택된 항목: <strong style="color: #16a34a;">${result.selected_items.join(', ')}</strong><br>
+          분석 연도 범위: <strong>${result.year_range ? result.year_range[0] + '년 ~ ' + result.year_range[1] + '년' : '전체 시계열'}</strong>
+        </p>
+      </div>
+      <details style="margin-top: 12px; font-size: 12px; color: #64748b;">
+        <summary style="cursor: pointer;">🔍 상세 원본 데이터(JSON) 보기</summary>
+        <pre style="margin-top: 8px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;"><code>${JSON.stringify(result, null, 2)}</code></pre>
+      </details>
+    `;
+  }
+
+  // 6) 구간별 분포 (distribution)
+  const histList = result.histogram || result.bins;
+  if (Array.isArray(histList) && histList.length > 0) {
+    let bHtml = `
+      <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 14px;">
+        <table class="table-preview" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+          <thead>
+            <tr style="background: #f8fafc; text-align: left; border-bottom: 2px solid #e2e8f0;">
+              <th style="padding: 10px 14px;">구간 범위 (%)</th>
+              <th style="padding: 10px 14px; text-align: right;">속한 국가 수</th>
+              <th style="padding: 10px 14px; text-align: right;">비율 (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+    histList.forEach(b => {
+      bHtml += `
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding: 9px 14px; font-weight: 600;">${b.range}%</td>
+          <td style="padding: 9px 14px; text-align: right;">${b.count}개국</td>
+          <td style="padding: 9px 14px; text-align: right;">${b.percentage}%</td>
+        </tr>
+      `;
+    });
+    bHtml += `
+          </tbody>
+        </table>
+      </div>
+      <details style="margin-top: 12px; font-size: 12px; color: #64748b;">
+        <summary style="cursor: pointer;">🔍 상세 원본 데이터(JSON) 보기</summary>
+        <pre style="margin-top: 8px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;"><code>${JSON.stringify(result, null, 2)}</code></pre>
+      </details>
+    `;
+    return bHtml;
+  }
+
+  // 7) 그 외 기본 JSON 표기
   return `<pre><code>${JSON.stringify(result, null, 2)}</code></pre>`;
 }
 

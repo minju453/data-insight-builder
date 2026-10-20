@@ -996,6 +996,99 @@ def easy_explain():
     }), 200
 
 
+KOREAN_COUNTRY_MAP = {
+    "한국": "Korea, Rep.", "대한민국": "Korea, Rep.", "남한": "Korea, Rep.", "korea": "Korea, Rep.", "south korea": "Korea, Rep.",
+    "북한": "Korea, Dem. People's Rep.",
+    "미국": "United States", "usa": "United States", "미합중국": "United States", "us": "United States",
+    "일본": "Japan", "japan": "Japan",
+    "중국": "China", "china": "China",
+    "독일": "Germany", "germany": "Germany",
+    "영국": "United Kingdom", "uk": "United Kingdom",
+    "프랑스": "France", "france": "France",
+    "인도": "India", "india": "India",
+    "이탈리아": "Italy", "italy": "Italy",
+    "캐나다": "Canada", "canada": "Canada",
+    "호주": "Australia", "오스트레일리아": "Australia", "australia": "Australia",
+    "러시아": "Russian Federation", "russia": "Russian Federation",
+    "브라질": "Brazil", "brazil": "Brazil",
+    "멕시코": "Mexico", "mexico": "Mexico",
+    "베트남": "Viet Nam", "vietnam": "Viet Nam",
+    "필리핀": "Philippines", "philippines": "Philippines",
+    "인도네시아": "Indonesia", "indonesia": "Indonesia",
+    "태국": "Thailand", "thailand": "Thailand",
+    "싱가포르": "Singapore", "singapore": "Singapore",
+    "말레이시아": "Malaysia", "malaysia": "Malaysia",
+    "스페인": "Spain", "spain": "Spain",
+    "네덜란드": "Netherlands", "netherlands": "Netherlands",
+    "스위스": "Switzerland", "switzerland": "Switzerland",
+    "스웨덴": "Sweden", "sweden": "Sweden",
+    "노르웨이": "Norway", "norway": "Norway",
+    "덴마크": "Denmark", "denmark": "Denmark",
+    "핀란드": "Finland", "finland": "Finland",
+    "아일랜드": "Ireland", "ireland": "Ireland",
+    "벨기에": "Belgium", "belgium": "Belgium",
+    "오스트리아": "Austria", "austria": "Austria",
+    "포르투갈": "Portugal", "portugal": "Portugal",
+    "그리스": "Greece", "greece": "Greece",
+    "폴란드": "Poland", "poland": "Poland",
+    "튀르키예": "Turkiye", "터키": "Turkiye", "turkey": "Turkiye",
+    "사우디": "Saudi Arabia", "사우디아라비아": "Saudi Arabia",
+    "아랍에미리트": "United Arab Emirates", "uae": "United Arab Emirates",
+    "이스라엘": "Israel", "israel": "Israel",
+    "카타르": "Qatar", "qatar": "Qatar",
+    "쿠웨이트": "Kuwait", "kuwait": "Kuwait",
+    "남아공": "South Africa", "남아프리카": "South Africa",
+    "이집트": "Egypt, Arab Rep.", "egypt": "Egypt, Arab Rep.",
+    "나이지리아": "Nigeria", "nigeria": "Nigeria",
+    "케냐": "Kenya", "kenya": "Kenya",
+    "에티오피아": "Ethiopia", "ethiopia": "Ethiopia",
+    "가나": "Ghana", "ghana": "Ghana",
+    "부룬디": "Burundi", "burundi": "Burundi",
+    "우간다": "Uganda", "uganda": "Uganda",
+    "차드": "Chad", "chad": "Chad",
+    "아르헨티나": "Argentina", "argentina": "Argentina",
+    "칠레": "Chile", "chile": "Chile",
+    "콜롬비아": "Colombia", "colombia": "Colombia",
+    "페루": "Peru", "peru": "Peru",
+    "뉴질랜드": "New Zealand", "new zealand": "New Zealand",
+    "아이슬란드": "Iceland", "iceland": "Iceland",
+    "룩셈부르크": "Luxembourg", "luxembourg": "Luxembourg",
+    "모나코": "Monaco", "monaco": "Monaco",
+    "바레인": "Bahrain", "bahrain": "Bahrain",
+    "세계": "World", "전세계": "World", "world": "World"
+}
+
+
+def extract_countries_from_query(query, available_items):
+    matched = []
+    q_lower = query.lower()
+
+    # 1. 한국어 매핑 사전 탐색
+    for kor_key, eng_name in KOREAN_COUNTRY_MAP.items():
+        if kor_key in q_lower:
+            for itm in available_items:
+                if str(itm).lower() == eng_name.lower():
+                    if itm not in matched:
+                        matched.append(itm)
+                    break
+
+    # 2. 데이터셋 레이블 열 직접 부분일치 탐색 (영문 등)
+    for itm in available_items:
+        s_itm = str(itm).strip()
+        if len(s_itm) >= 4 and s_itm.lower() in q_lower:
+            if itm not in matched:
+                matched.append(itm)
+
+    return matched
+
+
+def extract_years_from_query(query, available_years):
+    import re
+    found_years = re.findall(r"\b(19\d\d|20\d\d)\b", query)
+    valid_years = [y for y in found_years if y in available_years]
+    return valid_years
+
+
 @app.route("/query", methods=["POST"])
 def natural_language_query():
     """
@@ -1026,8 +1119,14 @@ def natural_language_query():
     df = current_dataset["df"]
     rec_year = diagnosis.get("recommended_reference_year") or "2024"
     year_cols = diagnosis.get("date_or_year_columns", [])
+    label_col = diagnosis.get("target_label_column") or "Country Name"
+    available_items = df[label_col].dropna().unique().tolist() if label_col in df.columns else []
 
     logger.info(f"[AI] 자연어 질문 분석 시작: '{user_query}'")
+
+    # 질문에서 국가명 및 연도 파싱
+    matched_countries = extract_countries_from_query(user_query, available_items)
+    extracted_years = extract_years_from_query(user_query, year_cols)
 
     # 1. Gemini를 통해 자연어 질문에 알맞은 도구와 파라미터 매핑 (JSON 강제)
     mapping_prompt = f"""당신은 데이터 쿼리 매퍼입니다.
@@ -1039,7 +1138,9 @@ def natural_language_query():
 [데이터 컨텍스트]
 - 권장 기준연도: {rec_year}
 - 연도 열 범위: {year_cols[0] if year_cols else '없음'} ~ {year_cols[-1] if year_cols else '없음'}
-- 레이블 열: {diagnosis.get('target_label_column')}
+- 레이블 열: {label_col}
+- 질문에서 감지된 국가명: {matched_countries}
+- 질문에서 감지된 연도: {extracted_years}
 
 [사용자 질문]
 "{user_query}"
@@ -1050,7 +1151,9 @@ def natural_language_query():
   "params": {{
     "reference_period": "{rec_year}",
     "n": 10,
-    "target_item": "Korea, Rep.",
+    "items": {json.dumps(matched_countries) if matched_countries else '["Korea, Rep."]'},
+    "target_item": "{matched_countries[0] if matched_countries else 'Korea, Rep.'}",
+    "mode": "top",
     "exclude_aggregates": true
   }},
   "intent": "질문의 분석 의도 요약"
@@ -1075,9 +1178,48 @@ def natural_language_query():
     if tool_name not in TOOL_MAP:
         tool_name = "top_bottom_n"
 
-    # 기준시점 보장
-    if "reference_period" not in params or not params["reference_period"]:
+    # 파라미터 보정 (연도)
+    if extracted_years:
+        if len(extracted_years) >= 2:
+            params["compare_period"] = str(min(extracted_years))
+            params["reference_period"] = str(max(extracted_years))
+        else:
+            params["reference_period"] = str(extracted_years[0])
+    elif "reference_period" not in params or not params["reference_period"]:
         params["reference_period"] = rec_year
+
+    # 2개 이상 국가 언급 시 시계열 비교(trend_line) 우선 연동
+    if len(matched_countries) >= 2 and any(k in user_query for k in ["추이", "비교", "변화", "추세", "연도별", "흐름"]):
+        tool_name = "trend_line"
+        params["items"] = matched_countries
+
+    # trend_line 실행 시 영문 국가명 전달 보장
+    if tool_name == "trend_line":
+        if matched_countries:
+            params["items"] = matched_countries
+        elif "items" in params and isinstance(params["items"], list):
+            resolved = []
+            for itm in params["items"]:
+                res = extract_countries_from_query(str(itm), available_items)
+                resolved.extend(res if res else [itm])
+            params["items"] = list(dict.fromkeys(resolved))
+
+    # 단일 국가에 대한 세계 평균 비교 질문인 경우 compare_one_vs_all 보정
+    if len(matched_countries) == 1:
+        c = matched_countries[0]
+        if any(k in user_query for k in ["평균", "중앙값", "전세계", "세계", "어느 정도", "수준"]) and not any(k in user_query for k in ["1-10", "10등", "순위", "상위"]):
+            tool_name = "compare_one_vs_all"
+            params["target_item"] = c
+        elif any(k in user_query for k in ["순위", "등수", "상위", "하위", "비교"]):
+            params["target_item"] = c
+
+    # 분포/히스토그램 질문 보정
+    if any(k in user_query for k in ["분포", "히스토그램", "도수분포"]):
+        tool_name = "distribution"
+
+    # 특정 국가 언급 없는 전 세계 기술통계(평균, 중앙값, 최솟값 등) 질문 보정
+    if not matched_countries and any(k in user_query for k in ["기술통계", "요약 통계", "평균과 중앙값", "최소 최대"]):
+        tool_name = "describe_numeric"
 
     # 하위/최하위/낮은/적게 등의 의도 판별
     is_bottom_query = (
@@ -1104,21 +1246,14 @@ def natural_language_query():
         logger.error(f"[ERROR] Pandas 계산 실패: {str(e)}")
         return jsonify({"error": f"계산 실행 중 오류가 발생했습니다: {str(e)}"}), 500
 
-    # 대상 국가/항목 탐색 (한국, 미국, 일본, 중국 등 질문 내 비교 대상 식별)
+    # 대상 국가/항목 탐색 (한국, 미국, 일본, 중국, 프랑스, 독일 등 질문 내 비교 대상 식별)
     target_item = None
     target_display_name = None
-    if any(k in user_query for k in ["대한민국", "한국", "korea", "South Korea"]):
-        target_item = "Korea, Rep."
-        target_display_name = "대한민국"
-    elif any(k in user_query for k in ["미국", "united states", "usa"]):
-        target_item = "United States"
-        target_display_name = "미국"
-    elif any(k in user_query for k in ["일본", "japan"]):
-        target_item = "Japan"
-        target_display_name = "일본"
-    elif any(k in user_query for k in ["중국", "china"]):
-        target_item = "China"
-        target_display_name = "중국"
+    if matched_countries:
+        target_item = matched_countries[0]
+        # 역방향 한국어 표시명 찾기
+        inv_map = {v.lower(): k for k, v in KOREAN_COUNTRY_MAP.items() if len(k) >= 2 and k not in ["korea", "south korea", "usa", "uk", "world"]}
+        target_display_name = inv_map.get(target_item.lower(), target_item)
     elif mapping_data.get("compare_target"):
         target_item = mapping_data.get("compare_target")
         target_display_name = target_item
