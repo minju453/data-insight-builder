@@ -1058,9 +1058,202 @@ function setupErrorCopyHandler() {
 }
 
 // ============================================================
+// PWA Service Worker 등록
+// ============================================================
+function initServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/static/sw.js')
+        .then(reg => console.log('[PWA] Service Worker registered with scope:', reg.scope))
+        .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+    });
+  }
+}
+
+// ============================================================
+// 접속 비밀번호 4가지 및 보안 게이트 관리
+// ============================================================
+let activePasswords = [];
+
+async function loadAccessPasswords() {
+  try {
+    const res = await fetch('/auth/passwords');
+    const data = await res.json();
+    if (res.ok && Array.isArray(data.passwords)) {
+      activePasswords = data.passwords;
+      renderPasswordChips(activePasswords);
+    }
+  } catch (err) {
+    console.warn('[AUTH] 비밀번호 목록 로드 실패:', err);
+  }
+}
+
+function renderPasswordChips(passwords) {
+  const containers = [
+    document.getElementById('activePasswordChips'),
+    document.getElementById('modalPasswordChips')
+  ];
+
+  containers.forEach(container => {
+    if (!container) return;
+    container.innerHTML = '';
+    passwords.forEach((pwd, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'pw-chip';
+      chip.innerHTML = `
+        <span><strong>#${idx + 1}</strong>: ${pwd}</span>
+        <button type="button" class="copy-btn" data-pw="${pwd}">복사 & 입력</button>
+      `;
+      chip.querySelector('.copy-btn').addEventListener('click', () => {
+        navigator.clipboard.writeText(pwd).then(() => {
+          const input = document.getElementById('authPasswordInput');
+          if (input) input.value = pwd;
+          alert(`비밀번호 '${pwd}'가 클립보드에 복사되고 입력창에 채워졌습니다!`);
+        });
+      });
+      container.appendChild(chip);
+    });
+  });
+}
+
+function setupAuthGate() {
+  const authModal = document.getElementById('authGateModal');
+  const authForm = document.getElementById('authGateForm');
+  const authInput = document.getElementById('authPasswordInput');
+  const errorMsg = document.getElementById('authErrorMsg');
+  const toggleBtn = document.getElementById('togglePasswordListBtn');
+  const listCard = document.getElementById('passwordListCard');
+  const genBtn = document.getElementById('generateNewPwBtn');
+  const modalGenBtn = document.getElementById('modalGeneratePwBtn');
+  const lockBtn = document.getElementById('lockScreenNowBtn');
+  const manageModal = document.getElementById('passwordManageModal');
+  const openManageBtn = document.getElementById('managePwBtn');
+  const closeManageBtn = document.getElementById('closePwManageBtn');
+
+  // 인증 상태 확인 (sessionStorage)
+  const isAuth = sessionStorage.getItem('data_insight_auth') === 'true';
+  if (isAuth) {
+    authModal.classList.add('hidden');
+  } else {
+    authModal.classList.remove('hidden');
+  }
+
+  // 비밀번호 목록 토글
+  if (toggleBtn && listCard) {
+    toggleBtn.addEventListener('click', () => {
+      listCard.classList.toggle('hidden');
+    });
+  }
+
+  // 폼 제출 검증
+  if (authForm) {
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorMsg.classList.add('hidden');
+      const pwd = authInput.value.trim();
+      if (!pwd) return;
+
+      const submitBtn = document.getElementById('authSubmitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = '인증 중...';
+
+      try {
+        const res = await fetch('/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || '접속 비밀번호가 일치하지 않습니다.');
+        }
+        sessionStorage.setItem('data_insight_auth', 'true');
+        authModal.classList.add('hidden');
+      } catch (err) {
+        errorMsg.textContent = err.message;
+        errorMsg.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '접속하기 🚀';
+      }
+    });
+  }
+
+  // 새로운 비밀번호 4가지 무작위 생성 핸들러
+  async function handleGeneratePasswords() {
+    if (!confirm('새로운 4가지 접속 비밀번호를 자동 생성하시겠습니까? 기존 비밀번호는 비활성화됩니다.')) return;
+    try {
+      const res = await fetch('/auth/generate-passwords', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.passwords)) {
+        activePasswords = data.passwords;
+        renderPasswordChips(activePasswords);
+        alert(`새로운 4가지 접속 비밀번호가 생성되었습니다:\n${data.passwords.join(', ')}`);
+      }
+    } catch (err) {
+      alert('비밀번호 생성 중 오류가 발생했습니다: ' + err.message);
+    }
+  }
+
+  if (genBtn) genBtn.addEventListener('click', handleGeneratePasswords);
+  if (modalGenBtn) modalGenBtn.addEventListener('click', handleGeneratePasswords);
+
+  // 화면 잠금 버튼
+  if (lockBtn) {
+    lockBtn.addEventListener('click', () => {
+      sessionStorage.removeItem('data_insight_auth');
+      if (manageModal) manageModal.classList.add('hidden');
+      authModal.classList.remove('hidden');
+      authInput.value = '';
+    });
+  }
+
+  // 비밀번호 관리 모달 열기/닫기
+  if (openManageBtn && manageModal) {
+    openManageBtn.addEventListener('click', () => {
+      manageModal.classList.remove('hidden');
+    });
+  }
+  if (closeManageBtn && manageModal) {
+    closeManageBtn.addEventListener('click', () => {
+      manageModal.classList.add('hidden');
+    });
+  }
+
+  // 초기 비밀번호 로드
+  loadAccessPasswords();
+}
+
+// ============================================================
+// Safari 및 모바일 PWA 안내 모달
+// ============================================================
+function setupSafariPwaGuide() {
+  const guideModal = document.getElementById('safariGuideModal');
+  const openBtn = document.getElementById('safariPwaBtn');
+  const closeBtn = document.getElementById('closeSafariGuideBtn');
+  const confirmBtn = document.getElementById('confirmSafariGuideBtn');
+
+  if (openBtn && guideModal) {
+    openBtn.addEventListener('click', () => {
+      guideModal.classList.remove('hidden');
+    });
+  }
+
+  const closeModal = () => {
+    if (guideModal) guideModal.classList.add('hidden');
+  };
+
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  if (confirmBtn) confirmBtn.addEventListener('click', closeModal);
+}
+
+// ============================================================
 // DOM 준비 완료 시 실행
 // ============================================================
 document.addEventListener("DOMContentLoaded", () => {
+  initServiceWorker();
+  setupAuthGate();
+  setupSafariPwaGuide();
   initServerStatus();
   setupUploadHandlers();
   setupNaturalLanguageQueryHandler();

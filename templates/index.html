@@ -2,21 +2,72 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AI Data Insight Builder</title>
   <link rel="stylesheet" href="/static/style.css">
+
+  <!-- PWA Web App Manifest -->
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#3b82f6">
+
+  <!-- Apple Safari & iOS PWA 설정 (명확히 명시) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DataInsight">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
+
   <!-- Chart.js CDN (Framework 제외 순수 라이브러리) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+  <!-- 접속 비밀번호 4가지 인증 게이트 (보안 잠금 오버레이) -->
+  <div id="authGateModal" class="auth-gate-overlay">
+    <div class="auth-gate-card">
+      <div class="auth-gate-header">
+        <img src="/static/icons/icon-192.png" alt="App Logo" class="auth-logo">
+        <h2>🔒 접속 비밀번호 인증</h2>
+        <p class="auth-subtitle">AI Data Insight Builder에 접속하려면<br><strong>4가지 허용 비밀번호</strong> 중 하나를 입력해 주세요.</p>
+      </div>
+
+      <form id="authGateForm" class="auth-gate-form">
+        <div class="auth-input-group">
+          <input type="password" id="authPasswordInput" placeholder="접속 비밀번호 입력" autocomplete="current-password" required>
+          <button type="submit" id="authSubmitBtn" class="btn btn-primary">접속하기 🚀</button>
+        </div>
+        <div id="authErrorMsg" class="auth-error-msg hidden"></div>
+      </form>
+
+      <div class="auth-gate-footer">
+        <button type="button" id="togglePasswordListBtn" class="text-link-btn">🔑 발급된 4가지 비밀번호 확인 / 새로 생성</button>
+        <div id="passwordListCard" class="password-list-card hidden">
+          <div class="password-list-title">현재 유효한 4가지 접속 비밀번호:</div>
+          <div id="activePasswordChips" class="password-chips-container"></div>
+          <div class="password-gen-action">
+            <button type="button" id="generateNewPwBtn" class="btn btn-sm btn-secondary">🎲 새로운 비밀번호 4가지 새로 생성</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 상단 네비게이션 및 상태바 -->
   <header class="app-header">
     <div class="header-container">
-      <div class="logo-area">
-        <h1>📊 AI Data Insight Builder</h1>
-        <p class="subtitle">공공기관 CSV 데이터 진단부터 Pandas 정확한 계산, Gemini 해석까지</p>
+      <div class="logo-area" style="display: flex; align-items: center; gap: 12px;">
+        <img src="/static/icons/icon-192.png" alt="Logo" style="width: 40px; height: 40px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+        <div>
+          <h1 style="margin: 0; font-size: 1.35rem;">AI Data Insight Builder</h1>
+          <p class="subtitle" style="margin: 2px 0 0 0;">공공기관 CSV 데이터 진단부터 Pandas 정확한 계산, Gemini 해석까지</p>
+        </div>
       </div>
       <div class="status-badge-area">
+        <button type="button" id="safariPwaBtn" class="badge-btn" title="Safari 및 모바일 PWA 설치 방법 안내">🍎 Safari PWA 설치 안내</button>
+        <button type="button" id="managePwBtn" class="badge-btn" title="접속 허용 비밀번호 4가지 확인 및 관리">🔑 접속 비밀번호 4가지</button>
         <span id="serverStatusBadge" class="badge badge-loading">서버 상태 확인 중...</span>
         <span id="apiKeyBadge" class="badge badge-warning">API Key 확인 중</span>
         <span id="modelBadge" class="badge badge-info">Model: ...</span>
@@ -283,6 +334,63 @@
         <small>문제가 지속될 경우 '오류 상태 복사'를 눌러 현재 상태를 AI에게 그대로 전달하세요.</small>
       </div>
     </section>
+    <!-- Safari 및 모바일 PWA 설치 가이드 모달 -->
+    <div id="safariGuideModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>🍎 Safari 및 모바일 PWA 설치 가이드</h3>
+          <button type="button" class="modal-close-btn" id="closeSafariGuideBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="guide-platform">
+            <h4>📱 iPhone / iPad (iOS Safari)</h4>
+            <ol>
+              <li>Safari 브라우저 하단 중앙의 <strong>[공유] 아이콘(네모에 위쪽 화살표 ↑)</strong>을 탭합니다.</li>
+              <li>공유 시트 메뉴를 아래로 스크롤하여 <strong>[홈 화면에 추가(Add to Home Screen)]</strong>를 누릅니다.</li>
+              <li>우측 상단 <strong>[추가]</strong>를 누르면 홈 화면에 예쁜 앱 아이콘이 생성되며, 브라우저 주소창 없이 네이티브 앱처럼 전체화면으로 실행됩니다.</li>
+            </ol>
+          </div>
+          <div class="guide-platform">
+            <h4>💻 Mac (macOS Safari)</h4>
+            <ol>
+              <li>Safari 상단 메뉴바에서 <strong>[파일(File)]</strong> ➡️ <strong>[Dock에 추가...]</strong>를 클릭합니다.</li>
+              <li>독(Dock)에서 독립적인 데스크톱 앱 형태로 바로 실행할 수 있습니다.</li>
+            </ol>
+          </div>
+          <div class="guide-platform">
+            <h4>🌐 Chrome / Edge 데스크톱 & Android</h4>
+            <p>브라우저 주소창 오른쪽 끝에 나타나는 <strong>[앱 설치 ⬇️]</strong> 버튼을 누르면 즉시 설치됩니다.</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="confirmSafariGuideBtn">확인했습니다</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 비밀번호 관리 모달 -->
+    <div id="passwordManageModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>🔑 접속 허용 비밀번호 4가지 관리</h3>
+          <button type="button" class="modal-close-btn" id="closePwManageBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 14px;">
+            현재 앱에 접속할 수 있는 유효한 비밀번호 4가지입니다. 아래 비밀번호 중 하나로 로그인할 수 있습니다.
+          </p>
+          <div id="modalPasswordChips" class="password-chips-container"></div>
+          <div style="background: #f1f5f9; padding: 12px; border-radius: 6px; font-size: 0.8rem; color: #475569; margin-bottom: 14px;">
+            💡 <strong>Vercel 환경변수 설정 팁:</strong> Vercel 프로젝트 대시보드 <code>Settings -> Environment Variables</code>에서 <code>ACCESS_PASSWORDS</code>에 콤마(,)로 구분하여 4가지 비밀번호를 직접 영구 지정할 수도 있습니다.
+          </div>
+          <div style="display: flex; gap: 8px; justify-content: space-between;">
+            <button type="button" id="modalGeneratePwBtn" class="btn btn-secondary">🎲 새로운 비밀번호 4가지 생성</button>
+            <button type="button" id="lockScreenNowBtn" class="btn btn-outline" style="color: var(--danger); border-color: var(--danger);">🔒 지금 화면 잠그기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <footer class="app-footer">

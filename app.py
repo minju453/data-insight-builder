@@ -76,6 +76,79 @@ def health():
     }), 200
 
 
+# =============================================================
+# 접속 비밀번호 4가지 관리 및 인증 라우트
+# =============================================================
+DEFAULT_ACCESS_PASSWORDS = ["insight2024", "gemini35", "analytics77", "alpha99"]
+
+
+def get_allowed_passwords():
+    env_pass = os.getenv("ACCESS_PASSWORDS", "").strip()
+    if env_pass:
+        passwords = [p.strip() for p in env_pass.split(",") if p.strip()]
+        if len(passwords) >= 4:
+            return passwords[:4]
+    return list(DEFAULT_ACCESS_PASSWORDS)
+
+
+current_access_passwords = get_allowed_passwords()
+
+
+@app.route("/auth/verify", methods=["POST"])
+def verify_access():
+    """입력받은 비밀번호가 4가지 접속 비밀번호 중 하나인지 검증"""
+    global current_access_passwords
+    req = request.get_json(silent=True) or {}
+    pwd = str(req.get("password", "")).strip()
+
+    # 현재 활성 비밀번호 또는 기본 비밀번호 허용
+    valid_set = set(current_access_passwords) | set(DEFAULT_ACCESS_PASSWORDS)
+    if pwd in valid_set:
+        logger.info(f"[AUTH] 비밀번호 인증 성공 (입력값: {pwd[:3]}***)")
+        return jsonify({
+            "status": "success",
+            "message": "인증에 성공했습니다."
+        }), 200
+
+    logger.warning("[AUTH] 비밀번호 인증 실패")
+    return jsonify({
+        "status": "fail",
+        "error": "접속 비밀번호가 일치하지 않습니다. 올바른 4가지 비밀번호 중 하나를 입력해 주세요."
+    }), 401
+
+
+@app.route("/auth/passwords", methods=["GET"])
+def get_passwords():
+    """현재 활성화된 4가지 접속 비밀번호 목록 반환"""
+    global current_access_passwords
+    return jsonify({
+        "status": "success",
+        "passwords": current_access_passwords
+    }), 200
+
+
+@app.route("/auth/generate-passwords", methods=["POST"])
+def generate_new_passwords():
+    """새로운 4가지 접속 비밀번호 무작위 자동 생성"""
+    global current_access_passwords
+    import random
+    prefixes = ["data", "insight", "gemini", "stat", "vision", "alpha", "chart", "matrix"]
+    new_pwds = []
+    while len(new_pwds) < 4:
+        cand = f"{random.choice(prefixes)}{random.randint(1000, 9999)}"
+        if cand not in new_pwds:
+            new_pwds.append(cand)
+
+    current_access_passwords = new_pwds
+    logger.info(f"[AUTH] 새로운 4가지 접속 비밀번호 생성 완료: {new_pwds}")
+
+    return jsonify({
+        "status": "success",
+        "message": "새로운 4가지 접속 비밀번호가 성공적으로 생성되었습니다.",
+        "passwords": current_access_passwords
+    }), 200
+
+
 def detect_encoding_and_decode(raw_bytes):
     """
     규칙: utf-8-sig -> utf-8 -> cp949 -> euc-kr 순차 시도
