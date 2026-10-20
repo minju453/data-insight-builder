@@ -42,14 +42,30 @@
         <div id="authErrorMsg" class="auth-error-msg hidden"></div>
       </form>
 
-      <div class="auth-gate-footer">
-        <button type="button" id="togglePasswordListBtn" class="text-link-btn">🔑 발급된 4가지 비밀번호 확인 / 새로 생성</button>
-        <div id="passwordListCard" class="password-list-card hidden">
-          <div class="password-list-title">현재 유효한 4가지 접속 비밀번호:</div>
-          <div id="activePasswordChips" class="password-chips-container"></div>
-          <div class="password-gen-action">
-            <button type="button" id="generateNewPwBtn" class="btn btn-sm btn-secondary">🎲 새로운 비밀번호 4가지 새로 생성</button>
+      <div class="auth-gate-footer" style="text-align: left; margin-top: 18px;">
+        <div style="font-size: 0.82rem; font-weight: 700; color: #475569; margin-bottom: 8px;">
+          👇 아래 4가지 비밀번호 중 하나를 클릭하면 자동 입력됩니다:
+        </div>
+        <div id="activePasswordChips" class="password-chips-container">
+          <div class="pw-chip">
+            <span><strong>#1</strong>: insight2024</span>
+            <button type="button" class="copy-btn" data-pw="insight2024">클릭하여 입력</button>
           </div>
+          <div class="pw-chip">
+            <span><strong>#2</strong>: gemini35</span>
+            <button type="button" class="copy-btn" data-pw="gemini35">클릭하여 입력</button>
+          </div>
+          <div class="pw-chip">
+            <span><strong>#3</strong>: analytics77</span>
+            <button type="button" class="copy-btn" data-pw="analytics77">클릭하여 입력</button>
+          </div>
+          <div class="pw-chip">
+            <span><strong>#4</strong>: alpha99</span>
+            <button type="button" class="copy-btn" data-pw="alpha99">클릭하여 입력</button>
+          </div>
+        </div>
+        <div class="password-gen-action" style="margin-top: 10px; text-align: center;">
+          <button type="button" id="generateNewPwBtn" class="btn btn-sm btn-secondary" style="font-size: 0.8rem; padding: 6px 14px;">🎲 새로운 비밀번호 4가지 무작위 생성</button>
         </div>
       </div>
     </div>

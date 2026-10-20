@@ -81,14 +81,22 @@ def log_response_info(response):
 class VercelPrefixMiddleware(object):
     """
     Vercel Serverless 환경에서 rewrites로 인해 /api/index 또는 /api/index.py로
-    전달되는 PATH_INFO를 원래의 루트 경로(/)로 매핑해주는 WSGI 미들웨어
+    전달되는 PATH_INFO를 원래의 루트 경로(/) 및 API 경로로 복원해주는 WSGI 미들웨어
     """
     def __init__(self, wsgi_app):
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
+        # 1. Vercel이 전달한 원본 요청 경로(x-matched-path 등)가 있는 경우 우선 적용
+        x_matched = environ.get("HTTP_X_MATCHED_PATH") or environ.get("HTTP_X_FORWARDED_URI")
+        if x_matched:
+            clean_path = x_matched.split("?")[0]
+            if clean_path and not clean_path.startswith("/api/index"):
+                environ["PATH_INFO"] = clean_path
+                return self.wsgi_app(environ, start_response)
+
         path = environ.get("PATH_INFO", "")
-        # 정적 파일 요청은 그대로 유지하여 Flask static 라우터가 처리하도록 함
+        # 정적 파일 요청은 그대로 유지
         if path.startswith("/static/"):
             return self.wsgi_app(environ, start_response)
         if path in ("/api/index", "/api/index.py", "/api", "/api/"):
