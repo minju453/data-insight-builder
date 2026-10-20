@@ -80,23 +80,44 @@ def log_response_info(response):
 
 class VercelPrefixMiddleware(object):
     """
-    Vercel Serverless 환경에서 rewrites로 인해 /api/index 또는 /api/index.py로
-    전달되는 PATH_INFO를 원래의 루트 경로(/) 및 API 경로로 복원해주는 WSGI 미들웨어
+    Vercel Serverless 환경에서 rewrites로 인해 /api/index로 전달되는
+    PATH_INFO 및 쿼리 파라미터(__vercel_path)를 원래의 엔드포인트 경로로
+    완벽하게 복원해주는 WSGI 미들웨어
     """
     def __init__(self, wsgi_app):
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
-        # 1. Vercel이 전달한 원본 요청 경로(x-matched-path 등)가 있는 경우 우선 적용
+        import urllib.parse
+
+        # 1. vercel.json rewrite에서 전달한 __vercel_path 쿼리 파라미터 복원 (최우선)
+        qs_str = environ.get("QUERY_STRING", "")
+        if "__vercel_path=" in qs_str:
+            parsed_qs = urllib.parse.parse_qs(qs_str)
+            vpaths = parsed_qs.get("__vercel_path")
+            if vpaths and vpaths[0]:
+                raw_path = vpaths[0].strip()
+                if not raw_path.startswith("/"):
+                    raw_path = "/" + raw_path
+                while "//" in raw_path:
+                    raw_path = raw_path.replace("//", "/")
+                environ["PATH_INFO"] = raw_path
+
+                # __vercel_path 파라미터 제거 후 순수 QUERY_STRING 재구성
+                clean_params = [(k, v) for k, vs in parsed_qs.items() if k != "__vercel_path" for v in vs]
+                environ["QUERY_STRING"] = urllib.parse.urlencode(clean_params)
+                return self.wsgi_app(environ, start_response)
+
+        # 2. Vercel 원본 헤더(x-matched-path, x-forwarded-uri) 검사
         x_matched = environ.get("HTTP_X_MATCHED_PATH") or environ.get("HTTP_X_FORWARDED_URI")
         if x_matched:
             clean_path = x_matched.split("?")[0]
-            if clean_path and not clean_path.startswith("/api/index"):
+            if clean_path and not clean_path.startswith("/api/index") and not clean_path.startswith("/api/"):
                 environ["PATH_INFO"] = clean_path
                 return self.wsgi_app(environ, start_response)
 
+        # 3. 일반 fallback 처리
         path = environ.get("PATH_INFO", "")
-        # 정적 파일 요청은 그대로 유지
         if path.startswith("/static/"):
             return self.wsgi_app(environ, start_response)
         if path in ("/api/index", "/api/index.py", "/api", "/api/"):
@@ -132,6 +153,7 @@ def serve_static_file(filename):
 
 
 @app.route("/health", methods=["GET"])
+@app.route("/api/health", methods=["GET"])
 def health():
     """
     서버 상태 및 API Key 설정 여부 확인 라우트
@@ -169,6 +191,7 @@ current_access_passwords = get_allowed_passwords()
 
 
 @app.route("/auth/verify", methods=["POST"])
+@app.route("/api/auth/verify", methods=["POST"])
 def verify_access():
     """입력받은 비밀번호가 4가지 접속 비밀번호 중 하나인지 검증"""
     global current_access_passwords
@@ -192,6 +215,7 @@ def verify_access():
 
 
 @app.route("/auth/passwords", methods=["GET"])
+@app.route("/api/auth/passwords", methods=["GET"])
 def get_passwords():
     """현재 활성화된 4가지 접속 비밀번호 목록 반환"""
     global current_access_passwords
@@ -202,6 +226,7 @@ def get_passwords():
 
 
 @app.route("/auth/generate-passwords", methods=["POST"])
+@app.route("/api/auth/generate-passwords", methods=["POST"])
 def generate_new_passwords():
     """새로운 4가지 접속 비밀번호 무작위 자동 생성"""
     global current_access_passwords
@@ -447,6 +472,7 @@ def run_dataframe_diagnostics(df, filename, file_size_bytes, encoding, skiprows,
 
 
 @app.route("/inspect", methods=["POST"])
+@app.route("/api/inspect", methods=["POST"])
 def inspect():
     """
     POST /inspect (완전체 13대 진단 항목)
@@ -620,6 +646,7 @@ VALID_TOOL_NAMES = {t["name"] for t in TOOL_CATALOG}
 
 
 @app.route("/suggest", methods=["POST"])
+@app.route("/api/suggest", methods=["POST"])
 def suggest():
     """
     POST /suggest
@@ -814,6 +841,7 @@ REFERENCE_PERIOD_REQUIRED_TOOLS = {
 
 
 @app.route("/run", methods=["POST"])
+@app.route("/api/run", methods=["POST"])
 def run_tool():
     """
     POST /run
@@ -882,6 +910,7 @@ def run_tool():
 
 
 @app.route("/explain", methods=["POST"])
+@app.route("/api/explain", methods=["POST"])
 def explain():
     """
     POST /explain
@@ -1004,6 +1033,7 @@ def explain():
 
 
 @app.route("/ask", methods=["POST"])
+@app.route("/api/ask", methods=["POST"])
 def ask_question():
     """
     POST /ask
@@ -1077,6 +1107,7 @@ def ask_question():
 
 
 @app.route("/easy-explain", methods=["POST"])
+@app.route("/api/easy-explain", methods=["POST"])
 def easy_explain():
     """
     POST /easy-explain
@@ -1237,6 +1268,7 @@ def extract_years_from_query(query, available_years):
 
 
 @app.route("/query", methods=["POST"])
+@app.route("/api/query", methods=["POST"])
 def natural_language_query():
     """
     POST /query

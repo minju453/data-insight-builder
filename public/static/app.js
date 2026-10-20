@@ -75,12 +75,57 @@ function renderMarkdown(mdText) {
 }
 
 // ============================================================
+// 서버 자동 재시도 및 안전한 API JSON 요청 래퍼
+// (서버가 끊기거나 지연되어도 최대 3번까지 자동 재시도)
+// ============================================================
+async function fetchWithRetry(url, options = {}, retries = 3) {
+  let lastErr = null;
+  let lastRes = null;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response; // 성공하면 바로 결과 반환
+      lastRes = response;
+      console.warn(`[RETRY] ${url} ${i + 1}번째 시도 비정상 응답 (HTTP ${response.status}), 재시도 중...`);
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[RETRY] ${url} ${i + 1}번째 시도 연결 실패, 재시도 중...`, err);
+      if (i === retries - 1) throw err; // 마지막까지 실패하면 에러 던짐
+    }
+    // 다음 시도 전 1초 대기 (서버가 깨어날 시간 부여)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  return lastRes;
+}
+
+async function requestApiJson(url, options = {}, retries = 3) {
+  const res = await fetchWithRetry(url, options, retries);
+  if (!res) {
+    throw new Error("서버와의 통신에 실패했습니다. Flask 서버 연결 상태를 확인해 주세요.");
+  }
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (err) {
+    if (!res.ok) {
+      throw new Error(`서버 오류 (HTTP ${res.status}): 요청을 처리하지 못했습니다.`);
+    }
+    throw new Error(`서버 응답 형식 오류: 서버가 준비 중이거나 HTML 페이지가 수신되었습니다. 잠시 후 다시 시도해 주세요.`);
+  }
+
+  if (!res.ok) {
+    throw new Error(data.error || `서버 오류 (HTTP ${res.status})`);
+  }
+  return data;
+}
+
+// ============================================================
 // 0. 초기화: 서버 상태 점검 (/health)
 // ============================================================
 async function initServerStatus() {
   try {
-    const res = await fetch("/health");
-    const data = await res.json();
+    const data = await requestApiJson("/health");
 
     AppState.serverHealthy = data.status === "healthy";
     AppState.apiKeyConfigured = data.api_key_configured;
@@ -111,7 +156,7 @@ async function initServerStatus() {
     console.log("[PAGE] 페이지 로드 완료 (서버 상태: " + data.status + ", 모델: " + data.model + ")");
   } catch (err) {
     console.error("[ERROR] 서버 상태 확인 실패:", err);
-    showError("서버와의 통신에 실패했습니다. Flask 서버가 켜져 있는지 확인하세요.");
+    showError("서버와의 통신에 실패했습니다. 잠시 후 새로고침해 주세요.", err.message);
   }
 }
 
@@ -181,16 +226,10 @@ async function runInspect() {
   formData.append("file", AppState.selectedFile);
 
   try {
-    const res = await fetch("/inspect", {
+    const data = await requestApiJson("/inspect", {
       method: "POST",
       body: formData
     });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || "데이터 진단 중 오류가 발생했습니다.");
-    }
 
     const diag = data.diagnosis;
     AppState.diagnosis = diag;
@@ -289,16 +328,10 @@ async function runSuggest() {
   console.log("[SUGGEST] 제안 요청 시작");
 
   try {
-    const res = await fetch("/suggest", {
+    const data = await requestApiJson("/suggest", {
       method: "POST",
       headers: { "Content-Type": "application/json" }
     });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || "분석 제안 생성 중 오류가 발생했습니다.");
-    }
 
     AppState.suggestions = data.suggestions || [];
     console.log(`[SUGGEST] 제안 응답 수신 (제안 개수: ${AppState.suggestions.length}개)`);
@@ -415,17 +448,11 @@ function setupRunHandler() {
     runBtn.textContent = "계산 실행 중...";
 
     try {
-      const res = await fetch("/run", {
+      const data = await requestApiJson("/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "도구 계산 중 오류가 발생했습니다.");
-      }
 
       AppState.lastRunResult = data.run_result;
       console.log(`[RUN] 결과 수신 (사용 행: ${data.run_result.used_rows_count}, 제외 행: ${data.run_result.excluded_rows_count})`);
@@ -767,7 +794,7 @@ function setupExplainHandler() {
     explainBtn.textContent = "AI 보고서 작성 중...";
 
     try {
-      const res = await fetch("/explain", {
+      const data = await requestApiJson("/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -775,12 +802,6 @@ function setupExplainHandler() {
           run_result: AppState.lastRunResult
         })
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "해석 보고서 생성 중 오류가 발생했습니다.");
-      }
 
       AppState.lastReport = data.report;
       console.log(`[EXPLAIN] 해석 응답 수신 완료 (모드: ${selectedMode})`);
@@ -823,18 +844,13 @@ function setupExplainHandler() {
       console.log("[EXPLAIN] 쉬운 비유 설명 요청 시작");
 
       try {
-        const res = await fetch("/easy-explain", {
+        const data = await requestApiJson("/easy-explain", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             run_result: AppState.lastRunResult
           })
         });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || "쉬운 설명 생성 중 오류가 발생했습니다.");
-        }
 
         easySummaryContent.innerHTML = renderMarkdown(data.easy_explanation);
         easySummaryBox.classList.remove("hidden");
@@ -884,7 +900,7 @@ function setupFollowUpHandler() {
     console.log(`[EXPLAIN] 후속 질문 요청 시작 (질문: ${question.substring(0, 30)}...)`);
 
     try {
-      const res = await fetch("/ask", {
+      const data = await requestApiJson("/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -893,12 +909,6 @@ function setupFollowUpHandler() {
           run_result: AppState.lastRunResult
         })
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "답변 생성 중 오류가 발생했습니다.");
-      }
 
       console.log("[EXPLAIN] 후속 질문 답변 수신 완료");
 
@@ -965,16 +975,11 @@ function setupNaturalLanguageQueryHandler() {
     console.log(`[EXPLAIN] 자연어 데이터 질문 시작: '${text}'`);
 
     try {
-      const res = await fetch("/query", {
+      const data = await requestApiJson("/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: text })
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "자연어 질문 분석 중 오류가 발생했습니다.");
-      }
 
       console.log(`[EXPLAIN] 자연어 데이터 답변 수신 완료 (도구: ${data.tool})`);
 
