@@ -1079,6 +1079,18 @@ def natural_language_query():
     if "reference_period" not in params or not params["reference_period"]:
         params["reference_period"] = rec_year
 
+    # 하위/최하위/낮은/적게 등의 의도 판별
+    is_bottom_query = (
+        params.get("mode") == "bottom" or
+        (any(k in user_query for k in ["하위", "낮은", "최하위", "꼴등", "꼴찌", "bottom", "lowest", "least", "적게", "감소"])
+         and not any(k in user_query for k in ["상위", "높은", "최상위", "1등", "top", "highest", "급증"]))
+    )
+
+    if is_bottom_query:
+        params["mode"] = "bottom"
+    else:
+        params["mode"] = "top"
+
     # 2. [절대 규칙] 순수 Pandas로 실제 수치 계산 수행
     fn = TOOL_MAP[tool_name]
     import inspect as py_inspect
@@ -1127,82 +1139,124 @@ def natural_language_query():
         except Exception as e:
             logger.warning(f"비교 대상 수치 산출 실패: {str(e)}")
 
+    ref_period_str = run_result.get("reference_period", rec_year)
+
     # [자연어 질문과 시각화 그래프 일치화 로직]
-    # 도구가 top_bottom_n이고 특정 비교 대상(예: 대한민국)이 있는 경우:
-    if tool_name == "top_bottom_n" and extra_target_info and "top_n" in run_result.get("result", {}):
-        top_list = run_result["result"]["top_n"]
-        t_val = extra_target_info["target_value"]
-        t_rank = extra_target_info["rank"]
-        t_total = extra_target_info["total_count"]
-        t_name = target_display_name or extra_target_info["target_item"]
+    if tool_name == "top_bottom_n":
+        if is_bottom_query and "bottom_n" in run_result.get("result", {}):
+            # [하위 질문 처리: 최하위 국가들로 차트 및 표를 정확히 매칭]
+            bottom_list = run_result["result"]["bottom_n"]
+            run_result["result"].pop("top_n", None)  # 상위 10개국 제거하여 혼란 방지
 
-        # 1) 질문에서 '하위'나 '최하위'를 묻지 않았다면 무관한 bottom_n(부룬디, 차드 등)을 제거하여 혼란 방지
-        if not any(b in user_query for b in ["하위", "bottom", "최하위", "꼴등"]):
-            run_result["result"].pop("bottom_n", None)
+            if run_result.get("chart_data"):
+                run_result["chart_data"]["labels"] = [item["label"] for item in reversed(bottom_list)]
+                run_result["chart_data"]["datasets"][0]["data"] = [item["value"] for item in reversed(bottom_list)]
+                run_result["chart_data"]["datasets"][0]["backgroundColor"] = "#f43f5e"
+                run_result["chart_data"]["datasets"][0]["label"] = f"{ref_period_str}년 하위 {len(bottom_list)}개국 (인터넷 보급률 취약국)"
 
-        # 2) 비교 대상이 상위 N에 이미 포함되어 있는지 확인
-        already_in_top = any(
-            t_name in item["label"] or target_item.lower() in item["label"].lower()
-            for item in top_list
-        )
+            if bottom_list:
+                run_result["result"]["comparison_target"] = {
+                    "name": f"최하위 1위 ({bottom_list[0]['label']})",
+                    "raw_item": bottom_list[0]["label"],
+                    "rank": "전체 국가 중 최하위",
+                    "total_count": run_result["result"].get("total_valid_evaluated", len(bottom_list)),
+                    "percentile": 0.5,
+                    "value": bottom_list[0]["value"],
+                    "diff_from_1st": round(bottom_list[0]["value"] - 100.0, 2),
+                    "diff_from_10th": round(bottom_list[0]["value"] - bottom_list[-1]["value"], 2)
+                }
 
-        ref_period_str = run_result.get("reference_period", rec_year)
+            run_result["result"]["ranking_comparison_list"] = [
+                {"rank": f"하위 {item['rank']}위", "label": item["label"], "value": item["value"], "is_target": False}
+                for item in bottom_list
+            ]
 
-        # 3) 차트 데이터 업데이트 (Top 10 국가 + 대한민국을 시각화에 명확히 반영)
-        if run_result.get("chart_data"):
-            # top_bottom_n의 기본 라벨은 1위가 상단에 오도록 reversed(top_list) 순서임
-            existing_labels = list(run_result["chart_data"].get("labels", []))
-            existing_data = list(run_result["chart_data"]["datasets"][0].get("data", []))
+        elif not is_bottom_query and "top_n" in run_result.get("result", {}):
+            # [상위 질문 처리: 상위 10개국 및 대한민국 비교]
+            top_list = run_result["result"]["top_n"]
+            if not any(b in user_query for b in ["하위", "bottom", "최하위", "꼴등"]):
+                run_result["result"].pop("bottom_n", None)
 
-            if not already_in_top:
-                # 상위 10위 밖(예: 13위)이므로 차트 아래쪽에 비교 대상(대한민국) 막대 추가
-                new_label = f"{t_name} ({t_rank}위)"
-                # 수평 막대에서 가장 아래쪽에 위치하도록 reversed 리스트의 맨 앞에 삽입
-                updated_labels = [new_label] + existing_labels
-                updated_data = [t_val] + existing_data
-                updated_colors = ["#ef4444"] + ["#3b82f6"] * len(existing_data)
+            if extra_target_info:
+                t_val = extra_target_info["target_value"]
+                t_rank = extra_target_info["rank"]
+                t_total = extra_target_info["total_count"]
+                t_name = target_display_name or extra_target_info["target_item"]
+
+                already_in_top = any(
+                    t_name in item["label"] or target_item.lower() in item["label"].lower()
+                    for item in top_list
+                )
+
+                if run_result.get("chart_data"):
+                    existing_labels = list(run_result["chart_data"].get("labels", []))
+                    existing_data = list(run_result["chart_data"]["datasets"][0].get("data", []))
+
+                    if not already_in_top:
+                        new_label = f"{t_name} ({t_rank}위)"
+                        updated_labels = [new_label] + existing_labels
+                        updated_data = [t_val] + existing_data
+                        updated_colors = ["#ef4444"] + ["#3b82f6"] * len(existing_data)
+                    else:
+                        updated_labels = existing_labels
+                        updated_data = existing_data
+                        updated_colors = [
+                            "#ef4444" if (t_name in lbl or target_item.lower() in lbl.lower()) else "#3b82f6"
+                            for lbl in updated_labels
+                        ]
+
+                    run_result["chart_data"]["labels"] = updated_labels
+                    run_result["chart_data"]["datasets"][0]["data"] = updated_data
+                    run_result["chart_data"]["datasets"][0]["backgroundColor"] = updated_colors
+                    run_result["chart_data"]["datasets"][0]["label"] = f"{ref_period_str}년 상위 {len(top_list)}개국 및 {t_name} 비교"
+
+                diff_from_1st = round(t_val - top_list[0]["value"], 2) if top_list else 0.0
+                diff_from_last_top = round(t_val - top_list[-1]["value"], 2) if top_list else 0.0
+
+                run_result["result"]["comparison_target"] = {
+                    "name": t_name,
+                    "raw_item": target_item,
+                    "rank": t_rank,
+                    "total_count": t_total,
+                    "percentile": extra_target_info.get("percentile"),
+                    "value": t_val,
+                    "diff_from_1st": diff_from_1st,
+                    "diff_from_10th": diff_from_last_top
+                }
+
+                ranking_table = [
+                    {"rank": item["rank"], "label": item["label"], "value": item["value"], "is_target": False}
+                    for item in top_list
+                ]
+                if not already_in_top:
+                    ranking_table.append({
+                        "rank": t_rank,
+                        "label": f"★ {t_name} ({extra_target_info['target_item']})",
+                        "value": t_val,
+                        "is_target": True
+                    })
+                run_result["result"]["ranking_comparison_list"] = ranking_table
             else:
-                updated_labels = existing_labels
-                updated_data = existing_data
-                # 이미 상위에 있으면 해당 국가 막대만 빨간색(#ef4444)으로 강조
-                updated_colors = [
-                    "#ef4444" if (t_name in lbl or target_item.lower() in lbl.lower()) else "#3b82f6"
-                    for lbl in updated_labels
+                run_result["result"]["ranking_comparison_list"] = [
+                    {"rank": f"{item['rank']}위", "label": item["label"], "value": item["value"], "is_target": False}
+                    for item in top_list
                 ]
 
-            run_result["chart_data"]["labels"] = updated_labels
-            run_result["chart_data"]["datasets"][0]["data"] = updated_data
-            run_result["chart_data"]["datasets"][0]["backgroundColor"] = updated_colors
-            run_result["chart_data"]["datasets"][0]["label"] = f"{ref_period_str}년 상위 {len(top_list)}개국 및 {t_name} 비교"
-
-        # 4) result 객체에 비교 요약 데이터 추가 (프론트엔드 표 렌더링에 사용)
-        diff_from_1st = round(t_val - top_list[0]["value"], 2) if top_list else 0.0
-        diff_from_last_top = round(t_val - top_list[-1]["value"], 2) if top_list else 0.0
-
-        run_result["result"]["comparison_target"] = {
-            "name": t_name,
-            "raw_item": target_item,
-            "rank": t_rank,
-            "total_count": t_total,
-            "percentile": extra_target_info.get("percentile"),
-            "value": t_val,
-            "diff_from_1st": diff_from_1st,
-            "diff_from_10th": diff_from_last_top
-        }
-
-        # 표로 출력할 통합 순위 리스트
-        ranking_table = [
-            {"rank": item["rank"], "label": item["label"], "value": item["value"], "is_target": False}
-            for item in top_list
-        ]
-        if not already_in_top:
-            ranking_table.append({
-                "rank": t_rank,
-                "label": f"★ {t_name} ({extra_target_info['target_item']})",
-                "value": t_val,
-                "is_target": True
-            })
-        run_result["result"]["ranking_comparison_list"] = ranking_table
+    elif tool_name == "change_rate":
+        if is_bottom_query and "top_decliners" in run_result.get("result", {}):
+            run_result["result"].pop("top_growers", None)
+            bottom_diff = run_result["result"]["top_decliners"]
+            run_result["result"]["ranking_comparison_list"] = [
+                {"rank": f"하위 {item['rank']}위", "label": item["label"], "value": item["diff"], "is_target": False}
+                for item in bottom_diff
+            ]
+        elif "top_growers" in run_result.get("result", {}):
+            run_result["result"].pop("top_decliners", None)
+            top_diff = run_result["result"]["top_growers"]
+            run_result["result"]["ranking_comparison_list"] = [
+                {"rank": f"{item['rank']}위", "label": item["label"], "value": item["diff"], "is_target": False}
+                for item in top_diff
+            ]
 
     # 3. 계산된 실제 수치를 바탕으로 Gemini가 친절한 자연어 답변 작성 (절대 직접 계산 금지)
     answer_prompt = f"""당신은 데이터 분석 교육 멘토입니다.

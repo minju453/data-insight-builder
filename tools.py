@@ -494,10 +494,11 @@ def trend_line(df, items=None, label_column=None, year_columns=None):
 # -------------------------------------------------------------
 # 도구 7: top_bottom_n (기준연도 기준 상위·하위 N - 수평 막대)
 # -------------------------------------------------------------
-def top_bottom_n(df, reference_period, n=10, label_column=None, exclude_aggregates=True):
+def top_bottom_n(df, reference_period, n=10, label_column=None, exclude_aggregates=True, mode="top"):
     """
     [필수 규칙: 기준시점(reference_period) 필수 파라미터]
     지정된 기준시점에서 상위 N개 및 하위 N개 항목을 계산하고 수평 막대 차트 데이터를 생성합니다.
+    mode: "top" (상위 N개 차트), "bottom" (하위 N개 차트)
     """
     if not reference_period:
         return {
@@ -553,19 +554,33 @@ def top_bottom_n(df, reference_period, n=10, label_column=None, exclude_aggregat
         for i, (_, r) in enumerate(bottom_df.iterrows())
     ]
 
-    # Chart.js 수평 막대 차트 (Top N)
-    chart_data = {
-        "type": "bar",
-        "indexAxis": "y",
-        "labels": [item["label"] for item in reversed(top_list)],
-        "datasets": [
-            {
-                "label": f"{ref_col}년 상위 {len(top_list)}개",
-                "data": [item["value"] for item in reversed(top_list)],
-                "backgroundColor": "#3b82f6"
-            }
-        ]
-    }
+    # Chart.js 수평 막대 차트 (mode에 따라 상위 또는 하위)
+    if str(mode).lower() == "bottom":
+        chart_data = {
+            "type": "bar",
+            "indexAxis": "y",
+            "labels": [item["label"] for item in reversed(bottom_list)],
+            "datasets": [
+                {
+                    "label": f"{ref_col}년 하위 {len(bottom_list)}개국 (최저)",
+                    "data": [item["value"] for item in reversed(bottom_list)],
+                    "backgroundColor": "#f43f5e"
+                }
+            ]
+        }
+    else:
+        chart_data = {
+            "type": "bar",
+            "indexAxis": "y",
+            "labels": [item["label"] for item in reversed(top_list)],
+            "datasets": [
+                {
+                    "label": f"{ref_col}년 상위 {len(top_list)}개국",
+                    "data": [item["value"] for item in reversed(top_list)],
+                    "backgroundColor": "#3b82f6"
+                }
+            ]
+        }
 
     return {
         "tool": "top_bottom_n",
@@ -690,10 +705,11 @@ def group_summary(df, reference_period, group_column=None, value_column=None, ag
 # -------------------------------------------------------------
 # 도구 9: change_rate (두 시점 사이 변화량·변화율 - 막대)
 # -------------------------------------------------------------
-def change_rate(df, reference_period, compare_period=None, n=10, label_column=None, exclude_aggregates=True):
+def change_rate(df, reference_period, compare_period=None, n=10, label_column=None, exclude_aggregates=True, mode="top"):
     """
     [필수 규칙: 기준시점(reference_period) 필수 파라미터]
     두 시점(예: 2024년 vs 2014년) 사이의 증감량(변화량)과 증감율(변화율 %)을 계산합니다.
+    mode: "top" (상위 증가 N개), "bottom" (하위 증가/감소 N개)
     """
     if not reference_period:
         return {
@@ -795,17 +811,30 @@ def change_rate(df, reference_period, compare_period=None, n=10, label_column=No
         for i, (_, r) in enumerate(bottom_diff.iterrows())
     ]
 
-    chart_data = {
-        "type": "bar",
-        "labels": [item["label"] for item in top_list],
-        "datasets": [
-            {
-                "label": f"변화량 ({comp_col} -> {ref_col})",
-                "data": [item["diff"] for item in top_list],
-                "backgroundColor": "#3b82f6"
-            }
-        ]
-    }
+    if str(mode).lower() == "bottom":
+        chart_data = {
+            "type": "bar",
+            "labels": [item["label"] for item in bottom_list],
+            "datasets": [
+                {
+                    "label": f"변화량 최하위/감소 ({comp_col} -> {ref_col})",
+                    "data": [item["diff"] for item in bottom_list],
+                    "backgroundColor": "#f43f5e"
+                }
+            ]
+        }
+    else:
+        chart_data = {
+            "type": "bar",
+            "labels": [item["label"] for item in top_list],
+            "datasets": [
+                {
+                    "label": f"변화량 상위 ({comp_col} -> {ref_col})",
+                    "data": [item["diff"] for item in top_list],
+                    "backgroundColor": "#10b981"
+                }
+            ]
+        }
 
     return {
         "tool": "change_rate",

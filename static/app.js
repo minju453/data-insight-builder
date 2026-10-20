@@ -479,18 +479,24 @@ function renderCalculationSummary(result) {
   if (Array.isArray(result.ranking_comparison_list) && result.ranking_comparison_list.length > 0) {
     let html = "";
 
-    // 비교 대상 요약 카드
+    // 비교 대상 또는 최하위 요약 카드
     if (result.comparison_target) {
       const ct = result.comparison_target;
+      const isBottom = String(ct.rank).includes("최하위") || String(ct.name).includes("최하위");
+      const cardBg = isBottom ? "#fff1f2" : "#eff6ff";
+      const cardBorder = isBottom ? "#fecdd3" : "#bfdbfe";
+      const titleColor = isBottom ? "#e11d48" : "#1d4ed8";
+      const icon = isBottom ? "🔻" : "🎯";
       const diff1Str = ct.diff_from_1st > 0 ? `+${ct.diff_from_1st}` : `${ct.diff_from_1st}`;
       const diff10Str = ct.diff_from_10th > 0 ? `+${ct.diff_from_10th}` : `${ct.diff_from_10th}`;
+
       html += `
-        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px;">
-          <h4 style="margin: 0 0 6px 0; color: #1d4ed8; font-size: 15px; font-weight: 700;">🎯 ${ct.name} 순위 및 비교 분석 요약</h4>
+        <div style="background: ${cardBg}; border: 1px solid ${cardBorder}; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px;">
+          <h4 style="margin: 0 0 6px 0; color: ${titleColor}; font-size: 15px; font-weight: 700;">${icon} ${ct.name} 분석 요약</h4>
           <p style="margin: 0; font-size: 13.5px; color: #1f2937; line-height: 1.6;">
-            전체 <strong>${ct.total_count}개국</strong> 중 <strong>${ct.rank}위</strong> (상위 <strong>${ct.percentile}%</strong>)에 위치하며,
-            수치는 <strong style="color: #dc2626; font-size: 15px;">${ct.value}%</strong>입니다.<br>
-            • 1위와의 격차: <strong>${diff1Str}%p</strong> | • 10위와의 격차: <strong>${diff10Str}%p</strong>
+            전체 <strong>${ct.total_count}개국</strong> 중 <strong>${ct.rank}</strong>에 위치하며,
+            수치는 <strong style="color: ${isBottom ? '#e11d48' : '#dc2626'}; font-size: 15px;">${ct.value}%</strong>입니다.<br>
+            • ${isBottom ? '1위(100%)와의 격차' : '1위와의 격차'}: <strong>${diff1Str}%p</strong> | • ${isBottom ? '하위 10위 국가와의 격차' : '10위와의 격차'}: <strong>${diff10Str}%p</strong>
           </p>
         </div>
       `;
@@ -501,7 +507,7 @@ function renderCalculationSummary(result) {
         <table class="table-preview" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
           <thead>
             <tr style="background: #f8fafc; text-align: left; border-bottom: 2px solid #e2e8f0;">
-              <th style="padding: 10px 14px; width: 70px;">순위</th>
+              <th style="padding: 10px 14px; width: 80px;">순위</th>
               <th style="padding: 10px 14px;">국가 / 대상</th>
               <th style="padding: 10px 14px; text-align: right; width: 120px;">수치 (%)</th>
               <th style="padding: 10px 14px; text-align: center; width: 110px;">구분</th>
@@ -512,18 +518,25 @@ function renderCalculationSummary(result) {
 
     result.ranking_comparison_list.forEach(row => {
       const isTarget = row.is_target;
+      const isBottomRow = String(row.rank).includes("하위");
       const rowStyle = isTarget
         ? "background: #fee2e2; font-weight: 700; border-left: 4px solid #ef4444;"
-        : "border-bottom: 1px solid #f1f5f9;";
-      const badge = isTarget
-        ? `<span style="background: #ef4444; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px;">⭐ 비교 대상</span>`
-        : `<span style="background: #e2e8f0; color: #475569; padding: 3px 8px; border-radius: 12px; font-size: 11px;">상위권</span>`;
+        : isBottomRow ? "background: #fff5f5; border-bottom: 1px solid #fecdd3;" : "border-bottom: 1px solid #f1f5f9;";
+      
+      let badge = `<span style="background: #e2e8f0; color: #475569; padding: 3px 8px; border-radius: 12px; font-size: 11px;">상위권</span>`;
+      if (isTarget) {
+        badge = `<span style="background: #ef4444; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px;">⭐ 비교 대상</span>`;
+      } else if (isBottomRow) {
+        badge = `<span style="background: #ffe4e6; color: #e11d48; padding: 3px 8px; border-radius: 12px; font-size: 11px;">🔻 최하위권</span>`;
+      }
+
+      const rankDisplay = String(row.rank).includes("위") ? row.rank : `${row.rank}위`;
 
       html += `
         <tr style="${rowStyle}">
-          <td style="padding: 9px 14px;">${row.rank}위</td>
+          <td style="padding: 9px 14px;">${rankDisplay}</td>
           <td style="padding: 9px 14px;">${row.label}</td>
-          <td style="padding: 9px 14px; text-align: right; font-weight: ${isTarget ? '800' : 'normal'}; color: ${isTarget ? '#dc2626' : 'inherit'};">${row.value}%</td>
+          <td style="padding: 9px 14px; text-align: right; font-weight: ${isTarget || isBottomRow ? '700' : 'normal'}; color: ${isTarget ? '#dc2626' : (isBottomRow ? '#e11d48' : 'inherit')};">${row.value}%</td>
           <td style="padding: 9px 14px; text-align: center;">${badge}</td>
         </tr>
       `;
