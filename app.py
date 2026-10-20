@@ -5,7 +5,7 @@ import logging
 import math
 import os
 import re
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from dotenv import load_dotenv
 import numpy as np
 import pandas as pd
@@ -88,6 +88,9 @@ class VercelPrefixMiddleware(object):
 
     def __call__(self, environ, start_response):
         path = environ.get("PATH_INFO", "")
+        # 정적 파일 요청은 그대로 유지하여 Flask static 라우터가 처리하도록 함
+        if path.startswith("/static/"):
+            return self.wsgi_app(environ, start_response)
         if path in ("/api/index", "/api/index.py", "/api", "/api/"):
             environ["PATH_INFO"] = "/"
         elif path.startswith("/api/index/"):
@@ -108,6 +111,16 @@ app.wsgi_app = VercelPrefixMiddleware(app.wsgi_app)
 def index():
     """메인 페이지 반환"""
     return render_template("index.html")
+
+
+@app.route("/static/<path:filename>")
+def serve_static_file(filename):
+    """정적 파일 서빙 폴백 (CSS, JS, 이미지 등)"""
+    for d in valid_static_dirs:
+        target = os.path.join(d, filename)
+        if os.path.isfile(target):
+            return send_from_directory(d, filename)
+    return "File not found", 404
 
 
 @app.route("/health", methods=["GET"])
