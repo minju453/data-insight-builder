@@ -25,11 +25,33 @@ logging.basicConfig(
 logger = logging.getLogger("DataInsightBuilder")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+from jinja2 import ChoiceLoader, FileSystemLoader
+
+possible_template_dirs = [
+    os.path.join(BASE_DIR, "templates"),
+    os.path.join(BASE_DIR, "api", "templates"),
+    os.path.join(os.getcwd(), "templates"),
+    os.path.join(os.getcwd(), "api", "templates")
+]
+valid_template_dirs = [d for d in possible_template_dirs if os.path.isdir(d)]
+template_dir = valid_template_dirs[0] if valid_template_dirs else os.path.join(BASE_DIR, "templates")
+
+possible_static_dirs = [
+    os.path.join(BASE_DIR, "static"),
+    os.path.join(BASE_DIR, "api", "static"),
+    os.path.join(os.getcwd(), "static"),
+    os.path.join(os.getcwd(), "api", "static")
+]
+valid_static_dirs = [d for d in possible_static_dirs if os.path.isdir(d)]
+static_dir = valid_static_dirs[0] if valid_static_dirs else os.path.join(BASE_DIR, "static")
+
 app = Flask(
     __name__,
-    template_folder=os.path.join(BASE_DIR, "templates"),
-    static_folder=os.path.join(BASE_DIR, "static")
+    template_folder=template_dir,
+    static_folder=static_dir
 )
+if len(valid_template_dirs) > 1:
+    app.jinja_loader = ChoiceLoader([FileSystemLoader(d) for d in valid_template_dirs])
 
 # 환경변수 로드 및 설정
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
