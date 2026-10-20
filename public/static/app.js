@@ -1113,18 +1113,23 @@ function renderPasswordChips(passwords) {
       const chip = document.createElement('div');
       chip.className = 'pw-chip';
       chip.style.cursor = 'pointer';
-      chip.title = '클릭하면 입력창에 자동으로 채워집니다';
+      chip.title = '클릭하면 자동 입력되고 즉시 접속됩니다';
       chip.innerHTML = `
         <span><strong>#${idx + 1}</strong>: <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-weight: 700; color: #1e293b;">${pwd}</code></span>
-        <button type="button" class="copy-btn" data-pw="${pwd}" style="font-weight: 700; color: #2563eb; background: none; border: none; cursor: pointer;">입력하기 👉</button>
+        <button type="button" class="copy-btn" data-pw="${pwd}" style="font-weight: 700; color: #2563eb; background: none; border: none; cursor: pointer;">접속하기 👉</button>
       `;
 
-      // 칩 클릭 시 자동 입력
-      chip.addEventListener('click', (e) => {
+      // 칩 클릭 시 비밀번호 입력 후 즉시 접속 허용
+      chip.addEventListener('click', () => {
         const input = document.getElementById('authPasswordInput');
         if (input) {
           input.value = pwd;
-          input.focus();
+        }
+        const authModal = document.getElementById('authGateModal');
+        sessionStorage.setItem('data_insight_auth', 'true');
+        if (authModal) {
+          authModal.classList.add('hidden');
+          authModal.style.setProperty('display', 'none', 'important');
         }
       });
 
@@ -1145,20 +1150,45 @@ function setupAuthGate() {
   const openManageBtn = document.getElementById('managePwBtn');
   const closeManageBtn = document.getElementById('closePwManageBtn');
 
+  function unlockUI() {
+    sessionStorage.setItem('data_insight_auth', 'true');
+    if (authModal) {
+      authModal.classList.add('hidden');
+      authModal.style.setProperty('display', 'none', 'important');
+    }
+  }
+
+  function lockUI() {
+    sessionStorage.removeItem('data_insight_auth');
+    if (authModal) {
+      authModal.classList.remove('hidden');
+      authModal.style.removeProperty('display');
+    }
+  }
+
   // 인증 상태 확인 (sessionStorage)
   const isAuth = sessionStorage.getItem('data_insight_auth') === 'true';
   if (isAuth) {
-    authModal.classList.add('hidden');
+    unlockUI();
   } else {
-    authModal.classList.remove('hidden');
+    lockUI();
   }
+
+  // HTML에 이미 렌더링된 초기 칩 버튼들에도 클릭 이벤트 바인딩
+  document.querySelectorAll('#activePasswordChips .copy-btn, #activePasswordChips .pw-chip').forEach(el => {
+    el.addEventListener('click', (e) => {
+      const pw = el.getAttribute('data-pw') || el.querySelector('.copy-btn')?.getAttribute('data-pw');
+      if (pw && authInput) authInput.value = pw;
+      unlockUI();
+    });
+  });
 
   // 폼 제출 검증 (클라이언트 1차 즉시 승인 + 서버 검증 지원으로 100% 안정성 보장)
   if (authForm) {
     authForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      errorMsg.classList.add('hidden');
-      const pwd = authInput.value.trim();
+      if (errorMsg) errorMsg.classList.add('hidden');
+      const pwd = authInput ? authInput.value.trim() : '';
       if (!pwd) return;
 
       // 1. 유효 비밀번호 목록 대조 (기본 4가지 + 현재 활성 비밀번호 + 로컬 저장 비밀번호)
@@ -1174,17 +1204,27 @@ function setupAuthGate() {
         }
       } catch (e) {}
 
-      if (allValidPasswords.has(pwd)) {
+      // 대소문자 무시 대조
+      let matched = false;
+      for (const validPw of allValidPasswords) {
+        if (validPw.toLowerCase() === pwd.toLowerCase()) {
+          matched = true;
+          break;
+        }
+      }
+
+      if (matched) {
         // 즉시 접속 허용!
-        sessionStorage.setItem('data_insight_auth', 'true');
-        authModal.classList.add('hidden');
+        unlockUI();
         return;
       }
 
       // 2. 서버 백엔드 검증 시도
       const submitBtn = document.getElementById('authSubmitBtn');
-      submitBtn.disabled = true;
-      submitBtn.textContent = '인증 중...';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '인증 중...';
+      }
 
       try {
         const res = await fetch('/auth/verify', {
@@ -1196,14 +1236,17 @@ function setupAuthGate() {
         if (!res.ok) {
           throw new Error(data.error || '접속 비밀번호가 일치하지 않습니다.');
         }
-        sessionStorage.setItem('data_insight_auth', 'true');
-        authModal.classList.add('hidden');
+        unlockUI();
       } catch (err) {
-        errorMsg.textContent = '비밀번호가 올바르지 않습니다. 아래 표시된 4가지 비밀번호 중 하나를 클릭해 주세요.';
-        errorMsg.classList.remove('hidden');
+        if (errorMsg) {
+          errorMsg.textContent = '비밀번호가 올바르지 않습니다. 아래 표시된 4가지 비밀번호 중 하나를 클릭해 주세요.';
+          errorMsg.classList.remove('hidden');
+        }
       } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = '접속하기 🚀';
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = '접속하기 🚀';
+        }
       }
     });
   }
@@ -1258,35 +1301,6 @@ function setupAuthGate() {
 
   // 초기 비밀번호 렌더링
   renderPasswordChips(activePasswords);
-  loadAccessPasswords();
-}
-
-  if (genBtn) genBtn.addEventListener('click', handleGeneratePasswords);
-  if (modalGenBtn) modalGenBtn.addEventListener('click', handleGeneratePasswords);
-
-  // 화면 잠금 버튼
-  if (lockBtn) {
-    lockBtn.addEventListener('click', () => {
-      sessionStorage.removeItem('data_insight_auth');
-      if (manageModal) manageModal.classList.add('hidden');
-      authModal.classList.remove('hidden');
-      authInput.value = '';
-    });
-  }
-
-  // 비밀번호 관리 모달 열기/닫기
-  if (openManageBtn && manageModal) {
-    openManageBtn.addEventListener('click', () => {
-      manageModal.classList.remove('hidden');
-    });
-  }
-  if (closeManageBtn && manageModal) {
-    closeManageBtn.addEventListener('click', () => {
-      manageModal.classList.add('hidden');
-    });
-  }
-
-  // 초기 비밀번호 로드
   loadAccessPasswords();
 }
 

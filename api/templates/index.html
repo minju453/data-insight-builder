@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AI Data Insight Builder</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=2">
 
   <!-- PWA Web App Manifest -->
   <link rel="manifest" href="/static/manifest.json">
@@ -21,8 +21,8 @@
   <link rel="icon" type="image/png" href="/static/favicon.png">
   <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
 
-  <!-- Chart.js CDN (Framework 제외 순수 라이브러리) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Chart.js (로컬 번들: Tracking Prevention 방지 및 오프라인 완벽 지원) -->
+  <script src="/static/chart.umd.min.js"></script>
 </head>
 <body>
   <!-- 접속 비밀번호 4가지 인증 게이트 (보안 잠금 오버레이) -->
@@ -413,6 +413,6 @@
     <p>AI Data Insight Builder &copy; 2026. Made with Flask, Pandas, Vanilla JS, Chart.js & Gemini API.</p>
   </footer>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=2"></script>
 </body>
 </html>

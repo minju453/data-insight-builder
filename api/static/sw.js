@@ -1,9 +1,10 @@
 // Service Worker for AI Data Insight Builder PWA
-const CACHE_NAME = 'insight-builder-v1';
+const CACHE_NAME = 'insight-builder-v2';
 const PRECACHE_URLS = [
   '/',
-  '/static/style.css',
-  '/static/app.js',
+  '/static/style.css?v=2',
+  '/static/app.js?v=2',
+  '/static/chart.umd.min.js',
   '/static/manifest.json',
   '/static/icons/icon-192.png',
   '/static/icons/icon-512.png',
@@ -11,13 +12,14 @@ const PRECACHE_URLS = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Pre-caching static assets');
+      console.log('[SW] Pre-caching static assets v2');
       return cache.addAll(PRECACHE_URLS).catch((err) => {
         console.warn('[SW] Pre-cache warning:', err);
       });
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -27,7 +29,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((name) => {
           if (name !== CACHE_NAME) {
-            console.log('[SW] Removing old cache:', name);
+            console.log('[SW] Deleting stale cache:', name);
             return caches.delete(name);
           }
         })
@@ -37,30 +39,47 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only cache GET requests, skip API calls like /inspect, /query, /run
+  // Only cache GET requests
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/inspect') || url.pathname.startsWith('/query') || url.pathname.startsWith('/run') || url.pathname.startsWith('/auth')) {
+  // Never intercept API endpoints
+  if (url.pathname.startsWith('/inspect') || 
+      url.pathname.startsWith('/query') || 
+      url.pathname.startsWith('/run') || 
+      url.pathname.startsWith('/auth') ||
+      url.pathname.startsWith('/health')) {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((response) => {
-        if (!response || response.status !== 200 || response.type !== 'basic') {
+  // Network-First for HTML, JS, CSS to guarantee immediate updates
+  if (event.request.mode === 'navigate' || 
+      url.pathname.endsWith('.js') || 
+      url.pathname.endsWith('.css') || 
+      url.pathname === '/') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
           return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-First for static images/icons
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      return cached || fetch(event.request).then((res) => {
+        if (res && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         }
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-        return response;
-      }).catch(() => {
-        return caches.match('/');
+        return res;
       });
     })
   );
